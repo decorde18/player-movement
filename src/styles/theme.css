@@ -1,0 +1,121 @@
+/* --------------------------------------------------------------------------
+| Custom CSS Variables (Theme Definition)
+| Hex values from theme.js are converted to HSL (Hue, Saturation, Lightness)
+| HSL is required for the Tailwind config's dynamic opacity.
+| --------------------------------------------------------------------------*/
+
+:root {
+  /* ==================== Colors (using HSL) ==================== */
+  /* Primary: #0f3460 (Deep Navy Blue) -> HSL: 211 75% 22% */
+  --color-primary: 211 75% 22%;
+
+  /* Secondary: #16213e (Darker Navy) -> HSL: 218 44% 16% */
+  --color-secondary: 218 44% 16%;
+
+  /* Accent: #e94560 (Vibrant Coral Red) -> HSL: 349 77% 59% */
+  --color-accent: 349 77% 59%;
+
+  /* Background: #f8f9fa (Soft Off-White) -> HSL: 210 17% 98% */
+  --color-background: 210 17% 98%;
+
+  /* Surface: #ffffff (Pure White) -> HSL: 0 0% 100% */
+  --color-surface: 0 0% 100%;
+
+  /* Text: #1a1a2e (Deep Charcoal) -> HSL: 240 29% 14% */
+  --color-text: 240 29% 14%;
+
+  /* Text Label: #533483 (Muted Purple-Blue) -> HSL: 267 44% 36% */
+  --color-text-label: 211 35% 45%;
+
+  /* White: #f0f4f8 (Light Blue-Gray) -> HSL: 210 29% 95% */
+  --color-white: 210 29% 95%;
+
+  /* Muted: #6c757d (Medium Gray) -> HSL: 210 11% 46% */
+  --color-muted: 210 11% 46%;
+
+  /* Success: #10b981 (Emerald Green) -> HSL: 160 84% 39% */
+  --color-success: 160 84% 39%;
+
+  /* Warning Colors */
+  --color-warningbg: 48 100% 91%; /* bg-yellow-50 */
+  --color-warningborder: 48 89% 60%; /* border-yellow-400 */
+  --color-warningtext: 48 89% 35%; /* text-yellow-800 */
+
+  /* Danger: #e94560 (Same as Accent Red) -> HSL: 349 77% 59% */
+  --color-danger: 349 77% 59%;
+
+  /* Error Hover: #d63447 (Darker Red) -> HSL: 349 67% 52% */
+  --color-error-hover: 349 67% 52%;
+
+  /* Accent Hover: #1a4d7a (Brighter Navy) -> HSL: 207 64% 29% */
+  --color-accent-hover: 207 64% 29%;
+
+  /* Border: #cbd5e1 (Light Blue-Gray) -> HSL: 214 32% 85% */
+  --color-border: 214 32% 85%;
+
+  /* Purple: #8b5cf6 (Vibrant Purple) -> HSL: 258 90% 66% */
+  --color-purple: 258 90% 66%;
+
+  /* Shadow Primary: Based on primary color */
+  --shadow-primary: 211 75% 22%;
+
+  /* ==================== Spacing & Layout (from theme.js) ==================== */
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --padding-small: 0.8rem;
+  --padding-medium: 1.2rem;
+  --padding-large: 1.6rem;
+  --padding-xlarge: 2.4rem;
+
+  /* ==================== Typography & Fonts (from theme.js) ==================== */
+  --font-family-body: var(--font-inter), "Inter", sans-serif;
+  --font-family-heading: var(--font-poppins), "Poppins", sans-serif;
+  --font-family-main: "Arial", sans-serif;
+  --font-size-title: 2rem;
+  --font-size-subtitle: 1.5rem;
+  --font-size-small: 1rem;
+  --font-size-medium: 1.75rem;
+  --font-size-large: 2rem;
+  --font-size-xlarge: 2.4rem;
+  --font-size-body: 1.25rem;
+  --font-size-input: 1.75rem;
+  --font-size-label: 1.75rem;
+  --font-size-button: 1.4rem;
+  --font-weight-bold: 700;
+
+  /* ==================== Border Radius (from theme.js) ==================== */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-default: 0.8rem;
+
+  /* ==================== Dark Theme Fallback (from theme.js) ==================== */
+  --dark-background: 218 51% 4%;
+  --dark-text: 210 29% 95%;
+  --dark-primary: 218 36% 30%;
+  --dark-secondary: 215 67% 13%;
+  --dark-accent: 218 36% 30%;
+  --dark-accent-hover: 218 36% 30%;
+}
+
+/* Dark mode overrides */
+.dark,
+[data-theme="dark"] {
+  --color-background: 218 44% 8%;
+  --color-surface: 218 44% 12%;
+  --color-text: 210 17% 95%;
+  --color-border: 218 44% 28%;
+  --color-text-label: 210 22% 76%;
+  --color-muted: 210 15% 72%;
+  --color-primary: 211 75% 35%;
+  --color-secondary: 218 44% 12%;
+  --color-accent: 349 77% 59%;
+  --color-accent-hover: 349 67% 52%;
+  --dark-background: 218 44% 8%;
+  --dark-text: 210 17% 95%;
+  --dark-primary: 211 75% 35%;
+  --dark-secondary: 218 44% 12%;
+  --dark-accent: 349 77% 59%;
+  --dark-accent-hover: 349 67% 52%;
+}

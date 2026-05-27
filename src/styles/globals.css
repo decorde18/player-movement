@@ -1,0 +1,184 @@
+/* 1. Import Theme Variables (Forced Rebuild) */
+@import "./theme.css";
+
+@import "tailwindcss";
+@source "../";
+@config "../../tailwind.config.ts";
+
+@theme {
+  --color-primary: hsl(var(--color-primary));
+  --color-secondary: hsl(var(--color-secondary));
+  --color-accent: hsl(var(--color-accent));
+  --color-background: hsl(var(--color-background));
+  --color-surface: hsl(var(--color-surface));
+  --color-text: hsl(var(--color-text));
+  --color-text-label: hsl(var(--color-text-label));
+  --color-white: hsl(var(--color-white));
+  --color-muted: hsl(var(--color-muted));
+  --color-success: hsl(var(--color-success));
+  
+  --color-warning-bg: hsl(var(--color-warningbg));
+  --color-warning-border: hsl(var(--color-warningborder));
+  --color-warning-text: hsl(var(--color-warningtext));
+
+  --color-danger: hsl(var(--color-danger));
+  --color-error-hover: hsl(var(--color-error-hover));
+  --color-accent-hover: hsl(var(--color-accent-hover));
+  --color-border: hsl(var(--color-border));
+  --color-purple: hsl(var(--color-purple));
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-default: var(--radius-default);
+}
+
+@layer base {
+  html {
+    /* font-size: 62.5%; 1rem = 10px, for easy scaling */
+    height: 100%;
+  }
+
+  html,
+  body {
+    /* Tailwind's base reset handles font, but we ensure our CSS variables are used */
+    font-family: var(--font-family-body);
+
+    /* These MUST consume the CSS variables for the color system to work */
+    background-color: hsl(var(--color-background));
+    color: hsl(var(--color-text));
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+/* Reusable modal overlay that uses theme tokens where possible */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  min-height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Fixed Height Layout Structure */
+.layout {
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  /* Prevent layout from expanding */
+  opacity: 0;
+  animation: fadeIn 0.1s ease-in forwards;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+.main-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  /* Allow flex item to shrink below content size */
+  overflow: hidden;
+  /* Prevent expansion */
+}
+
+.main-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  /* Allow flex item to shrink below content size */
+  overflow: hidden;
+  /* Prevent expansion */
+}
+
+.main-content > *:last-child {
+  flex: 1;
+  overflow-y: auto;
+  /* Make children scrollable */
+  min-height: 0;
+}
+
+@layer base {
+  input,
+  textarea,
+  select {
+    padding: var(--padding-medium);
+    border-radius: var(--radius-default);
+    border: 1px solid hsl(var(--color-border));
+    font-size: var(--font-size-body);
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: var(--padding-small);
+    color: hsl(var(--color-text));
+    background-color: hsl(var(--color-surface));
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      background-color 0.2s ease;
+  }
+
+  button {
+    padding: var(--padding-medium);
+    border-radius: var(--radius-default);
+    border: 1px solid hsl(var(--color-border));
+    font-size: var(--font-size-body);
+    box-sizing: border-box;
+    margin-bottom: var(--padding-small);
+    color: hsl(var(--color-text));
+    background-color: hsl(var(--color-surface));
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      background-color 0.2s ease;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: hsl(var(--color-primary));
+    box-shadow: 0 0 0 2px hsl(var(--color-primary) / 0.3);
+  }
+
+  input:disabled,
+  textarea:disabled,
+  select:disabled,
+  button:disabled {
+    background-color: hsl(var(--color-muted) / 0.1);
+    color: hsl(var(--color-muted));
+    cursor: not-allowed;
+  }
+
+  label {
+    font-size: var(--font-size-small);
+    color: hsl(var(--color-text-label));
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+
+  h1 {
+    font-size: var(--font-size-title);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--padding-medium);
+    color: hsl(var(--color-heading));
+  }
+}

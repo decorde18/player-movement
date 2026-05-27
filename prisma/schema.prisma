@@ -1,0 +1,20 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               Int       @id @default(autoincrement())
+  name             String?
+  email            String    @unique
+  passwordHash     String    @map("password_hash")
+  roles            Json?
+  resetToken       String?   @map("reset_token")
+  resetTokenExpiry DateTime? @map("reset_token_expiry")
+
+  @@map("users")
+}
