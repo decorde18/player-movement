@@ -6,26 +6,26 @@
 @config "../../tailwind.config.ts";
 
 @theme {
-  --color-primary: hsl(var(--color-primary));
-  --color-secondary: hsl(var(--color-secondary));
-  --color-accent: hsl(var(--color-accent));
-  --color-background: hsl(var(--color-background));
-  --color-surface: hsl(var(--color-surface));
-  --color-text: hsl(var(--color-text));
-  --color-text-label: hsl(var(--color-text-label));
-  --color-white: hsl(var(--color-white));
-  --color-muted: hsl(var(--color-muted));
-  --color-success: hsl(var(--color-success));
+  --color-primary: hsl(var(--raw-primary));
+  --color-secondary: hsl(var(--raw-secondary));
+  --color-accent: hsl(var(--raw-accent));
+  --color-background: hsl(var(--raw-background));
+  --color-surface: hsl(var(--raw-surface));
+  --color-text: hsl(var(--raw-text));
+  --color-text-label: hsl(var(--raw-text-label));
+  --color-white: hsl(var(--raw-white));
+  --color-muted: hsl(var(--raw-muted));
+  --color-success: hsl(var(--raw-success));
   
-  --color-warning-bg: hsl(var(--color-warningbg));
-  --color-warning-border: hsl(var(--color-warningborder));
-  --color-warning-text: hsl(var(--color-warningtext));
+  --color-warning-bg: hsl(var(--raw-warningbg));
+  --color-warning-border: hsl(var(--raw-warningborder));
+  --color-warning-text: hsl(var(--raw-warningtext));
 
-  --color-danger: hsl(var(--color-danger));
-  --color-error-hover: hsl(var(--color-error-hover));
-  --color-accent-hover: hsl(var(--color-accent-hover));
-  --color-border: hsl(var(--color-border));
-  --color-purple: hsl(var(--color-purple));
+  --color-danger: hsl(var(--raw-danger));
+  --color-error-hover: hsl(var(--raw-error-hover));
+  --color-accent-hover: hsl(var(--raw-accent-hover));
+  --color-border: hsl(var(--raw-border));
+  --color-purple: hsl(var(--raw-purple));
 
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
@@ -44,9 +44,9 @@
     /* Tailwind's base reset handles font, but we ensure our CSS variables are used */
     font-family: var(--font-family-body);
 
-    /* These MUST consume the CSS variables for the color system to work */
-    background-color: hsl(var(--color-background));
-    color: hsl(var(--color-text));
+    /* These consume the resolved color custom properties directly */
+    background-color: var(--color-background);
+    color: var(--color-text);
     transition:
       background-color 0.3s ease,
       color 0.3s ease;
@@ -123,13 +123,13 @@
   select {
     padding: var(--padding-medium);
     border-radius: var(--radius-default);
-    border: 1px solid hsl(var(--color-border));
+    border: 1px solid var(--color-border);
     font-size: var(--font-size-body);
     width: 100%;
     box-sizing: border-box;
     margin-bottom: var(--padding-small);
-    color: hsl(var(--color-text));
-    background-color: hsl(var(--color-surface));
+    color: var(--color-text);
+    background-color: var(--color-surface);
     transition:
       border-color 0.2s ease,
       box-shadow 0.2s ease,
@@ -139,12 +139,12 @@
   button {
     padding: var(--padding-medium);
     border-radius: var(--radius-default);
-    border: 1px solid hsl(var(--color-border));
+    border: 1px solid var(--color-border);
     font-size: var(--font-size-body);
     box-sizing: border-box;
     margin-bottom: var(--padding-small);
-    color: hsl(var(--color-text));
-    background-color: hsl(var(--color-surface));
+    color: var(--color-text);
+    background-color: var(--color-surface);
     transition:
       border-color 0.2s ease,
       box-shadow 0.2s ease,
@@ -155,22 +155,22 @@
   textarea:focus,
   select:focus {
     outline: none;
-    border-color: hsl(var(--color-primary));
-    box-shadow: 0 0 0 2px hsl(var(--color-primary) / 0.3);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px hsl(var(--raw-primary) / 0.3);
   }
 
   input:disabled,
   textarea:disabled,
   select:disabled,
   button:disabled {
-    background-color: hsl(var(--color-muted) / 0.1);
-    color: hsl(var(--color-muted));
+    background-color: hsl(var(--raw-muted) / 0.1);
+    color: var(--color-muted);
     cursor: not-allowed;
   }
 
   label {
     font-size: var(--font-size-small);
-    color: hsl(var(--color-text-label));
+    color: var(--color-text-label);
     margin-bottom: 0.4rem;
     display: block;
   }
@@ -179,6 +179,6 @@
     font-size: var(--font-size-title);
     font-weight: var(--font-weight-bold);
     margin-bottom: var(--padding-medium);
-    color: hsl(var(--color-heading));
+    color: var(--color-primary);
   }
 }

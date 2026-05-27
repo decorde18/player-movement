@@ -5,56 +5,25 @@
 | --------------------------------------------------------------------------*/
 
 :root {
-  /* ==================== Colors (using HSL) ==================== */
-  /* Primary: #0f3460 (Deep Navy Blue) -> HSL: 211 75% 22% */
-  --color-primary: 211 75% 22%;
-
-  /* Secondary: #16213e (Darker Navy) -> HSL: 218 44% 16% */
-  --color-secondary: 218 44% 16%;
-
-  /* Accent: #e94560 (Vibrant Coral Red) -> HSL: 349 77% 59% */
-  --color-accent: 349 77% 59%;
-
-  /* Background: #f8f9fa (Soft Off-White) -> HSL: 210 17% 98% */
-  --color-background: 210 17% 98%;
-
-  /* Surface: #ffffff (Pure White) -> HSL: 0 0% 100% */
-  --color-surface: 0 0% 100%;
-
-  /* Text: #1a1a2e (Deep Charcoal) -> HSL: 240 29% 14% */
-  --color-text: 240 29% 14%;
-
-  /* Text Label: #533483 (Muted Purple-Blue) -> HSL: 267 44% 36% */
-  --color-text-label: 211 35% 45%;
-
-  /* White: #f0f4f8 (Light Blue-Gray) -> HSL: 210 29% 95% */
-  --color-white: 210 29% 95%;
-
-  /* Muted: #6c757d (Medium Gray) -> HSL: 210 11% 46% */
-  --color-muted: 210 11% 46%;
-
-  /* Success: #10b981 (Emerald Green) -> HSL: 160 84% 39% */
-  --color-success: 160 84% 39%;
-
-  /* Warning Colors */
-  --color-warningbg: 48 100% 91%; /* bg-yellow-50 */
-  --color-warningborder: 48 89% 60%; /* border-yellow-400 */
-  --color-warningtext: 48 89% 35%; /* text-yellow-800 */
-
-  /* Danger: #e94560 (Same as Accent Red) -> HSL: 349 77% 59% */
-  --color-danger: 349 77% 59%;
-
-  /* Error Hover: #d63447 (Darker Red) -> HSL: 349 67% 52% */
-  --color-error-hover: 349 67% 52%;
-
-  /* Accent Hover: #1a4d7a (Brighter Navy) -> HSL: 207 64% 29% */
-  --color-accent-hover: 207 64% 29%;
-
-  /* Border: #cbd5e1 (Light Blue-Gray) -> HSL: 214 32% 85% */
-  --color-border: 214 32% 85%;
-
-  /* Purple: #8b5cf6 (Vibrant Purple) -> HSL: 258 90% 66% */
-  --color-purple: 258 90% 66%;
+  /* ==================== Colors (using HSL components) ==================== */
+  --raw-primary: 211 75% 22%;
+  --raw-secondary: 218 44% 16%;
+  --raw-accent: 349 77% 59%;
+  --raw-background: 210 17% 98%;
+  --raw-surface: 0 0% 100%;
+  --raw-text: 240 29% 14%;
+  --raw-text-label: 211 35% 45%;
+  --raw-white: 210 29% 95%;
+  --raw-muted: 210 11% 46%;
+  --raw-success: 160 84% 39%;
+  --raw-warningbg: 48 100% 91%;
+  --raw-warningborder: 48 89% 60%;
+  --raw-warningtext: 48 89% 35%;
+  --raw-danger: 349 77% 59%;
+  --raw-error-hover: 349 67% 52%;
+  --raw-accent-hover: 207 64% 29%;
+  --raw-border: 214 32% 85%;
+  --raw-purple: 258 90% 66%;
 
   /* Shadow Primary: Based on primary color */
   --shadow-primary: 211 75% 22%;
@@ -102,16 +71,16 @@
 /* Dark mode overrides */
 .dark,
 [data-theme="dark"] {
-  --color-background: 218 44% 8%;
-  --color-surface: 218 44% 12%;
-  --color-text: 210 17% 95%;
-  --color-border: 218 44% 28%;
-  --color-text-label: 210 22% 76%;
-  --color-muted: 210 15% 72%;
-  --color-primary: 211 75% 35%;
-  --color-secondary: 218 44% 12%;
-  --color-accent: 349 77% 59%;
-  --color-accent-hover: 349 67% 52%;
+  --raw-background: 218 44% 8%;
+  --raw-surface: 218 44% 12%;
+  --raw-text: 210 17% 95%;
+  --raw-border: 218 44% 28%;
+  --raw-text-label: 210 22% 76%;
+  --raw-muted: 210 15% 72%;
+  --raw-primary: 211 75% 35%;
+  --raw-secondary: 218 44% 12%;
+  --raw-accent: 349 77% 59%;
+  --raw-accent-hover: 349 67% 52%;
   --dark-background: 218 44% 8%;
   --dark-text: 210 17% 95%;
   --dark-primary: 211 75% 35%;

@@ -24,17 +24,34 @@ export const authOptions: NextAuthOptions = {
             where: { email: credentials.email },
           });
 
-          if (user) {
+          if (user && user.passwordHash) {
             const match = await bcrypt.compare(
               credentials.password,
-              user.passwordHash,
+              user.passwordHash
             );
             if (match) {
+              const isAdmin = user.role === "system_admin";
+              const isClubAdmin = user.role === "club_admin";
+              const isCoach = user.role === "coach";
+
+              const roles = {
+                isAdmin,
+                isClubAdmin,
+                isCoach,
+                coachTeamIds: user.assigned_team_id ? [user.assigned_team_id] : [],
+                managerTeamIds: [],
+                playerTeamIds: [],
+                parentTeamIds: [],
+                clubAdminTeamIds: [],
+              };
+
               return {
                 id: user.id.toString(),
                 name: user.name,
                 email: user.email,
-                roles: user.roles || { isAdmin: false },
+                role: user.role,
+                clubId: user.club_id,
+                roles,
               } as any;
             }
           }
@@ -48,6 +65,8 @@ export const authOptions: NextAuthOptions = {
               id: "1",
               name: "Admin",
               email: "admin@example.com",
+              role: "system_admin",
+              clubId: null,
               roles: {
                 isAdmin: true,
                 coachTeamIds: [],
@@ -72,6 +91,8 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = (user as any).id ?? token.id;
+        token.role = (user as any).role ?? token.role ?? "coach";
+        token.clubId = (user as any).clubId ?? token.clubId ?? null;
         token.roles = (user as any).roles ?? token.roles ?? { isAdmin: false };
       }
       return token;
@@ -79,6 +100,8 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token && session.user) {
         (session.user as any).id = token.id as any;
+        (session.user as any).role = token.role as any;
+        (session.user as any).clubId = token.clubId as any;
         (session.user as any).roles = (token as any).roles ?? {
           isAdmin: false,
         };
@@ -98,6 +121,8 @@ export async function getServerAuthSession(): Promise<Session | null> {
         id: process.env.BYPASS_USER_ID || "1",
         name: "Dev User",
         email: process.env.BYPASS_USER_EMAIL || "admin@example.com",
+        role: "system_admin",
+        clubId: null,
         roles: {
           isAdmin: true,
           coachTeamIds: [],

@@ -29,7 +29,7 @@ import { useFormClasses } from "@/hooks/useFormClasses";
 import { cn } from "@/lib/utils";
 
 export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> {
   label?: string;
   size?: "sm" | "md" | "lg";
   error?: boolean;

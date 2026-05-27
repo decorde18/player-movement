@@ -54,6 +54,7 @@ export interface SelectProps
   width?: "auto" | "sm" | "md" | "lg" | "full";
   placeholder?: string;
   showPlaceholder?: boolean;
+  placeholderDisabled?: boolean;
 }
 
 export default function Select({
@@ -66,6 +67,7 @@ export default function Select({
   placeholder = "Select an option",
   showPlaceholder = true,
   defaultValue,
+  placeholderDisabled = true,
   ...props
 }: SelectProps) {
   const widthClasses: Record<string, string> = {
@@ -96,7 +98,7 @@ export default function Select({
           {...props}
         >
           {showPlaceholder && (
-            <option value='' disabled>
+            <option value='' disabled={placeholderDisabled}>
               {placeholder}
             </option>
           )}

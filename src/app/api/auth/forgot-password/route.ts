@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       where: { email },
       data: {
         resetToken,
-        resetTokenExpiry,
+        resetTokenExpiry: tokenExpiry,
       },
     });
 

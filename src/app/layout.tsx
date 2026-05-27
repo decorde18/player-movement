@@ -6,8 +6,8 @@ import { Inter, Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 
 export const metadata = {
-  title: "Soccer Stats App",
-  description: "Cordero Soccer Stats Everything App",
+  title: "Player Movement App",
+  description: "Ranking/Rating Players",
 };
 
 const inter = Inter({

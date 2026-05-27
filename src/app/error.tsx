@@ -26,7 +26,7 @@ export default function Error({
            variant="outline" onClick={() => window.location.reload()}>
             Refresh Page
           </Button>
-          <Button variant="default" onClick={() => reset()}>
+          <Button variant="primary" onClick={() => reset()}>
             Try Again
           </Button>
         </div>

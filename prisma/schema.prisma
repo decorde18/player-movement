@@ -1,20 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model User {
+  id               Int           @id @default(autoincrement())
+  name             String        @db.VarChar(255)
+  email            String        @unique(map: "email") @db.VarChar(255)
+  passwordHash     String?       @map("password_hash") @db.VarChar(255)
+  password         String?       @db.VarChar(255)
+  role             users_role    @default(coach)
+  assigned_team_id Int?
+  created_at       DateTime?     @default(now()) @db.Timestamp(0)
+  resetToken       String?       @map("reset_token") @db.VarChar(255)
+  resetTokenExpiry DateTime?     @map("reset_token_expiry") @db.DateTime(0)
+  club_id          Int?
+  coach_notes      coach_notes[]
+  clubs            clubs?        @relation(fields: [club_id], references: [id], onUpdate: Restrict, map: "fk_user_club")
+  season_teams     season_teams? @relation(fields: [assigned_team_id], references: [id], onUpdate: Restrict, map: "fk_user_season_team")
+
+  @@index([club_id], map: "fk_user_club")
+  @@index([assigned_team_id], map: "fk_user_season_team")
+  @@map("users")
 }
 
-model User {
-  id               Int       @id @default(autoincrement())
-  name             String?
-  email            String    @unique
-  passwordHash     String    @map("password_hash")
-  roles            Json?
-  resetToken       String?   @map("reset_token")
-  resetTokenExpiry DateTime? @map("reset_token_expiry")
+model age_groups {
+  id                Int                 @id @default(autoincrement())
+  name              String              @db.VarChar(50)
+  dob_start         DateTime            @db.Date
+  dob_end           DateTime            @db.Date
+  created_at        DateTime?           @default(now()) @db.Timestamp(0)
+  season_age_groups season_age_groups[]
+}
 
-  @@map("users")
+model club_seasons {
+  club_id   Int
+  season_id Int
+  clubs     clubs   @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "club_seasons_ibfk_1")
+  seasons   seasons @relation(fields: [season_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "club_seasons_ibfk_2")
+
+  @@id([club_id, season_id])
+  @@index([season_id], map: "season_id")
+}
+
+model clubs {
+  id           Int            @id @default(autoincrement())
+  name         String         @db.VarChar(255)
+  created_at   DateTime?      @default(now()) @db.Timestamp(0)
+  club_seasons club_seasons[]
+  players      players[]
+  teams        teams[]
+  users        User[]
+}
+
+model coach_notes {
+  id         Int       @id @default(autoincrement())
+  coach_id   Int
+  session_id Int?
+  event_id   Int
+  player_id  Int
+  note_text  String    @db.Text
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+  users      User      @relation(fields: [coach_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_1")
+  sessions   sessions? @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_2")
+  events     events    @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_3")
+  players    players   @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_4")
+
+  @@index([coach_id], map: "coach_id")
+  @@index([event_id], map: "event_id")
+  @@index([player_id], map: "player_id")
+  @@index([session_id], map: "session_id")
+}
+
+model event_divisions {
+  event_id            Int
+  season_age_group_id Int
+  events              events            @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "event_divisions_ibfk_1")
+  season_age_groups   season_age_groups @relation(fields: [season_age_group_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "event_divisions_ibfk_2")
+
+  @@id([event_id, season_age_group_id])
+  @@index([season_age_group_id], map: "season_age_group_id")
+}
+
+model events {
+  id              Int               @id @default(autoincrement())
+  season_id       Int
+  name            String            @db.VarChar(255)
+  event_type      events_event_type
+  created_at      DateTime?         @default(now()) @db.Timestamp(0)
+  coach_notes     coach_notes[]
+  event_divisions event_divisions[]
+  seasons         seasons           @relation(fields: [season_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "events_ibfk_1")
+  sessions        sessions[]
+
+  @@index([season_id], map: "season_id")
+}
+
+model players {
+  id              Int               @id @default(autoincrement())
+  first_name      String            @db.VarChar(100)
+  last_name       String            @db.VarChar(100)
+  date_of_birth   DateTime?         @db.Date
+  gender          String?           @db.VarChar(20)
+  created_at      DateTime?         @default(now()) @db.Timestamp(0)
+  club_id         Int?
+  coach_notes     coach_notes[]
+  clubs           clubs?            @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_player_club")
+  season_players  season_players[]
+  session_players session_players[]
+
+  @@index([club_id], map: "fk_player_club")
+}
+
+model season_age_groups {
+  id              Int               @id @default(autoincrement())
+  season_id       Int
+  age_group_id    Int
+  name            String            @db.VarChar(20)
+  gender          String            @db.VarChar(20)
+  created_at      DateTime?         @default(now()) @db.Timestamp(0)
+  event_divisions event_divisions[]
+  seasons         seasons           @relation(fields: [season_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_age_groups_ibfk_1")
+  age_groups      age_groups        @relation(fields: [age_group_id], references: [id], onUpdate: Restrict, map: "season_age_groups_ibfk_2")
+  season_players  season_players[]
+  season_teams    season_teams[]
+
+  @@unique([season_id, age_group_id, gender], map: "season_id")
+  @@index([age_group_id], map: "age_group_id")
+}
+
+model season_players {
+  id                  Int               @id @default(autoincrement())
+  player_id           Int
+  season_age_group_id Int
+  tryout_number       String?           @db.VarChar(50)
+  position            String?           @db.VarChar(50)
+  rating              Int?              @default(0)
+  created_at          DateTime?         @default(now()) @db.Timestamp(0)
+  player_status       String?           @default("none") @db.VarChar(50)
+  season_team_id      Int?
+  players             players           @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_players_ibfk_1")
+  season_age_groups   season_age_groups @relation(fields: [season_age_group_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_players_ibfk_2")
+  season_teams        season_teams?     @relation(fields: [season_team_id], references: [id], onUpdate: Restrict, map: "season_players_ibfk_3")
+
+  @@unique([player_id, season_age_group_id], map: "player_id")
+  @@index([season_age_group_id], map: "season_age_group_id")
+  @@index([season_team_id], map: "season_team_id")
+}
+
+model seasons {
+  id                Int                 @id @default(autoincrement())
+  name              String              @db.VarChar(255)
+  start_date        DateTime?           @db.Date
+  end_date          DateTime?           @db.Date
+  created_at        DateTime?           @default(now()) @db.Timestamp(0)
+  club_seasons      club_seasons[]
+  events            events[]
+  season_age_groups season_age_groups[]
+}
+
+model session_fields {
+  id              Int                            @id @default(autoincrement())
+  session_id      Int
+  name            String                         @db.VarChar(255)
+  sort_by         String?                        @default("name") @db.VarChar(50)
+  sort_direction  session_fields_sort_direction? @default(asc)
+  filter_by       String?                        @default("all") @db.VarChar(50)
+  created_at      DateTime?                      @default(now()) @db.Timestamp(0)
+  rating_filter   String?                        @default("all") @db.VarChar(50)
+  sessions        sessions                       @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "session_fields_ibfk_1")
+  session_players session_players[]
+
+  @@index([session_id], map: "session_id")
+}
+
+model session_players {
+  id                Int                                @id @default(autoincrement())
+  session_id        Int
+  player_id         Int
+  season_team_id    Int?
+  attendance_status session_players_attendance_status? @default(present)
+  created_at        DateTime?                          @default(now()) @db.Timestamp(0)
+  field_id          Int?
+  rank              Int?                               @default(0)
+  session_fields    session_fields?                    @relation(fields: [field_id], references: [id], onUpdate: Restrict, map: "fk_session_field")
+  sessions          sessions                           @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "session_players_ibfk_1")
+  players           players                            @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "session_players_ibfk_2")
+  season_teams      season_teams?                      @relation(fields: [season_team_id], references: [id], onUpdate: Restrict, map: "fk_session_players_season_team")
+
+  @@unique([session_id, player_id], map: "session_id")
+  @@index([field_id], map: "fk_session_field")
+  @@index([player_id], map: "player_id")
+  @@index([season_team_id], map: "season_team_id")
+}
+
+model sessions {
+  id              Int               @id @default(autoincrement())
+  event_id        Int
+  name            String            @db.VarChar(255)
+  session_date    DateTime          @db.Date
+  created_at      DateTime?         @default(now()) @db.Timestamp(0)
+  coach_notes     coach_notes[]
+  session_fields  session_fields[]
+  session_players session_players[]
+  events          events            @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "sessions_ibfk_1")
+
+  @@index([event_id], map: "event_id")
+}
+
+model teams {
+  id           Int            @id @default(autoincrement())
+  name         String         @db.VarChar(255)
+  sort_by      String?        @default("name") @db.VarChar(50)
+  filter_by    String?        @default("all") @db.VarChar(50)
+  created_at   DateTime?      @default(now()) @db.Timestamp(0)
+  club_id      Int?
+  clubs        clubs?         @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_team_club")
+  season_teams season_teams[]
+
+  @@index([club_id], map: "fk_team_club")
+}
+
+model season_teams {
+  id                  Int               @id @default(autoincrement())
+  team_id             Int
+  season_age_group_id Int
+  created_at          DateTime?         @default(now()) @db.Timestamp(0)
+  teams               teams             @relation(fields: [team_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_teams_ibfk_1")
+  season_age_groups   season_age_groups @relation(fields: [season_age_group_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_teams_ibfk_2")
+  season_players      season_players[]
+  session_players     session_players[]
+  users               User[]
+
+  @@unique([team_id, season_age_group_id], map: "team_id")
+  @@index([season_age_group_id], map: "season_age_group_id")
+}
+
+enum events_event_type {
+  tryout
+  ranking
+}
+
+enum session_players_attendance_status {
+  present
+  absent
+  excused
+}
+
+enum session_fields_sort_direction {
+  asc
+  desc
+}
+
+enum users_role {
+  system_admin
+  club_admin
+  coach
 }
