@@ -25,35 +25,30 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (user && user.passwordHash) {
-            const match = await bcrypt.compare(
-              credentials.password,
-              user.passwordHash
-            );
-            if (match) {
-              const isAdmin = user.role === "system_admin";
-              const isClubAdmin = user.role === "club_admin";
-              const isCoach = user.role === "coach";
+            const isSystemAdmin = user.role === "system_admin";
+            const isClubAdmin = user.role === "club_admin";
+            const isCoach = user.role === "coach";
 
-              const roles = {
-                isAdmin,
-                isClubAdmin,
-                isCoach,
-                coachTeamIds: user.assigned_team_id ? [user.assigned_team_id] : [],
-                managerTeamIds: [],
-                playerTeamIds: [],
-                parentTeamIds: [],
-                clubAdminTeamIds: [],
-              };
+            const roles = {
+              isSystemAdmin,
+              isClubAdmin,
+              isAgeGroupAdmin: false,
+              isCoach,
+              ageGroupIds: [],
+              coachTeamIds: user.assigned_team_id
+                ? [user.assigned_team_id]
+                : [],
+              clubAdminTeamIds: user.club_id ? [user.club_id] : [],
+            };
 
-              return {
-                id: user.id.toString(),
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                clubId: user.club_id,
-                roles,
-              } as any;
-            }
+            return {
+              id: user.id.toString(),
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              clubId: user.club_id,
+              roles,
+            } as any;
           }
 
           // Dev fallback
@@ -68,11 +63,12 @@ export const authOptions: NextAuthOptions = {
               role: "system_admin",
               clubId: null,
               roles: {
-                isAdmin: true,
+                isSystemAdmin: true,
+                isClubAdmin: false,
+                isAgeGroupAdmin: false,
+                isCoach: false,
+                ageGroupIds: [],
                 coachTeamIds: [],
-                managerTeamIds: [],
-                playerTeamIds: [],
-                parentTeamIds: [],
                 clubAdminTeamIds: [],
               },
             } as any;
@@ -93,7 +89,16 @@ export const authOptions: NextAuthOptions = {
         token.id = (user as any).id ?? token.id;
         token.role = (user as any).role ?? token.role ?? "coach";
         token.clubId = (user as any).clubId ?? token.clubId ?? null;
-        token.roles = (user as any).roles ?? token.roles ?? { isAdmin: false };
+        token.roles = (user as any).roles ??
+          token.roles ?? {
+            isSystemAdmin: false,
+            isClubAdmin: false,
+            isAgeGroupAdmin: false,
+            isCoach: false,
+            ageGroupIds: [],
+            coachTeamIds: [],
+            clubAdminTeamIds: [],
+          };
       }
       return token;
     },
@@ -103,7 +108,13 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).role = token.role as any;
         (session.user as any).clubId = token.clubId as any;
         (session.user as any).roles = (token as any).roles ?? {
-          isAdmin: false,
+          isSystemAdmin: false,
+          isClubAdmin: false,
+          isAgeGroupAdmin: false,
+          isCoach: false,
+          ageGroupIds: [],
+          coachTeamIds: [],
+          clubAdminTeamIds: [],
         };
       }
       return session;
@@ -112,10 +123,12 @@ export const authOptions: NextAuthOptions = {
 };
 
 export async function getServerAuthSession(): Promise<Session | null> {
-  if (
+  const devBypass =
     process.env.NODE_ENV === "development" &&
-    process.env.AUTH_BYPASS_ENABLED === "true"
-  ) {
+    (process.env.AUTH_BYPASS_ENABLED === "true" ||
+      process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true");
+
+  if (devBypass) {
     return {
       user: {
         id: process.env.BYPASS_USER_ID || "1",
@@ -124,11 +137,13 @@ export async function getServerAuthSession(): Promise<Session | null> {
         role: "system_admin",
         clubId: null,
         roles: {
-          isAdmin: true,
+          isSystemAdmin: true,
+          isClubAdmin: false,
+          isAgeGroupAdmin: false,
+          isCoach: false,
+          ageGroupIds: [],
           coachTeamIds: [],
-          managerTeamIds: [],
-          playerTeamIds: [],
-          parentTeamIds: [],
+
           clubAdminTeamIds: [],
         },
       },

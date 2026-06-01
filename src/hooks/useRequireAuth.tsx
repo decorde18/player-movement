@@ -2,11 +2,12 @@
 
 import { useEffect } from "react";
 import { useSession, signIn } from "next-auth/react";
+import type { Session } from "next-auth";
 import { useRouter } from "next/navigation";
 
 export default function useRequireAuth(options?: {
   redirectTo?: string;
-  requireRole?: (roles: any) => boolean;
+  requireRole?: (roles: Session["user"]["roles"]) => boolean;
 }) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -14,7 +15,8 @@ export default function useRequireAuth(options?: {
 
   const bypass =
     process.env.NODE_ENV === "development" &&
-    process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true";
+    (process.env.AUTH_BYPASS_ENABLED === "true" ||
+      process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true");
 
   useEffect(() => {
     if (bypass) return;
@@ -25,34 +27,36 @@ export default function useRequireAuth(options?: {
       return;
     }
 
-    if (
-      options?.requireRole &&
-      !options.requireRole((session as any).user?.roles)
-    ) {
+    if (options?.requireRole && !options.requireRole(session.user?.roles)) {
       router.push(redirectTo);
     }
-  }, [session, status, router, bypass]);
+  }, [session, status, router, bypass, options, redirectTo]);
 
   if (bypass) {
-    return {
-      session: {
-        user: {
-          id: "1",
-          name: "Dev User",
-          email: "admin@example.com",
-          roles: {
-            isAdmin: true,
-            coachTeamIds: [],
-            managerTeamIds: [],
-            playerTeamIds: [],
-            parentTeamIds: [],
-            clubAdminTeamIds: [],
-          },
+    const devSession: Session = {
+      user: {
+        id: "1",
+        name: "Dev User",
+        email: "admin@example.com",
+        role: "system_admin",
+        clubId: null,
+        roles: {
+          isSystemAdmin: true,
+          isClubAdmin: false,
+          isAgeGroupAdmin: false,
+          isCoach: false,
+          ageGroupIds: [],
+          coachTeamIds: [],
+          clubAdminTeamIds: [],
         },
-        expires: new Date(Date.now() + 3600000).toISOString(),
       },
+      expires: "2099-12-31T23:59:59.999Z",
+    };
+
+    return {
+      session: devSession,
       status: "authenticated",
-    } as any;
+    } as const;
   }
 
   return { session, status } as const;

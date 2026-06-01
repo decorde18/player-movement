@@ -1,13 +1,12 @@
 import { Session } from "next-auth";
 
 export interface UserRolesJson {
-  isAdmin?: boolean;
+  isSystemAdmin?: boolean;
+  isClubAdmin?: boolean;
   isAgeGroupAdmin?: boolean;
+  isCoach?: boolean;
   ageGroupIds?: number[];
   coachTeamIds?: number[];
-  managerTeamIds?: number[];
-  playerTeamIds?: number[];
-  parentTeamIds?: number[];
   clubAdminTeamIds?: number[];
 }
 
@@ -15,7 +14,7 @@ export interface AuthenticatedUser {
   id: string;
   name?: string | null;
   email?: string | null;
-  role: "system_admin" | "club_admin" | "coach";
+  role: "system_admin" | "club_admin" | "age_group_admin" | "coach";
   clubId: number | null;
   roles?: UserRolesJson;
 }
@@ -55,7 +54,9 @@ export function getScopeFilters(session: Session | null) {
   // 2. Club Admin - Scoped to their specific club
   if (role === "club_admin") {
     if (!clubId) {
-      throw new Error("Access Denied: Club Administrator is missing a valid club_id.");
+      throw new Error(
+        "Access Denied: Club Administrator is missing a valid club_id.",
+      );
     }
     return {
       role,
@@ -99,8 +100,12 @@ export function getScopeFilters(session: Session | null) {
     };
   }
 
-  // 3. Age Group Admin / Coordinator (Check custom JSON roles)
-  const isAgeGroupAdmin = !!customRoles.isAgeGroupAdmin || (Array.isArray(customRoles.ageGroupIds) && customRoles.ageGroupIds.length > 0);
+  // 3. Age Group Admin / Coordinator (Check explicit role or custom JSON roles)
+  const isAgeGroupAdmin =
+    role === "age_group_admin" ||
+    !!customRoles.isAgeGroupAdmin ||
+    (Array.isArray(customRoles.ageGroupIds) &&
+      customRoles.ageGroupIds.length > 0);
   if (isAgeGroupAdmin) {
     const allowedAgeGroupIds = customRoles.ageGroupIds || [];
     return {

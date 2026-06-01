@@ -2,6 +2,7 @@ generator client {
   provider = "prisma-client-js"
 }
 
+
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
@@ -259,5 +260,6 @@ enum session_fields_sort_direction {
 enum users_role {
   system_admin
   club_admin
+  age_group_admin
   coach
 }

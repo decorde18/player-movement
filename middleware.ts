@@ -3,7 +3,6 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 const PUBLIC_PATHS = [
-  "/",
   "/login",
   "/forgot-password",
   "/reset-password",
@@ -11,22 +10,23 @@ const PUBLIC_PATHS = [
 ];
 
 export async function middleware(req: NextRequest) {
+  console.log("here");
   // Dev mode bypass
-  if (
+  const devBypass =
     process.env.NODE_ENV === "development" &&
-    process.env.AUTH_BYPASS_ENABLED === "true"
-  ) {
+    (process.env.AUTH_BYPASS_ENABLED === "true" ||
+      process.env.NEXT_PUBLIC_AUTH_BYPASS_ENABLED === "true");
+
+  if (devBypass) {
     return NextResponse.next();
   }
 
   const { pathname } = req.nextUrl;
 
-  // Allow public paths
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
-  // Protect /admin prefix as an example (require isAdmin role)
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
   if (!token) {
@@ -35,7 +35,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (pathname.startsWith("/admin") && !(token as any).roles?.isAdmin) {
+  const authToken = token as unknown as {
+    roles?: { isSystemAdmin?: boolean };
+  };
+  console.log(authToken);
+  if (pathname.startsWith("/admin") && !authToken.roles?.isSystemAdmin) {
     const url = req.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
@@ -45,5 +49,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/dashboard/:path*", "/protected/:path*"],
+  matcher: ["/((?!api/auth|login|forgot-password|reset-password).*)"],
 };

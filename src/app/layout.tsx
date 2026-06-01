@@ -36,7 +36,7 @@ export default async function RootLayout({
       <body className={`${inter.variable} ${poppins.variable}`}>
         <AuthProvider session={session}>
           {children}
-          <Toaster richColors closeButton position="top-right" />
+          <Toaster richColors closeButton position='top-right' />
         </AuthProvider>
       </body>
     </html>
