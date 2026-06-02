@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import AuthProvider from "@/components/AuthProvider";
-import { getServerAuthSession } from "@/lib/auth";
 import "@/styles/globals.css";
 import { Inter, Poppins } from "next/font/google";
+import { getServerAuthSession } from "@/lib/auth";
+
 import { Toaster } from "sonner";
+import AuthProvider from "@/components/AuthProvider";
 
 export const metadata = {
   title: "Player Movement App",
