@@ -35,6 +35,7 @@ export const seasonConfig: EntityConfig = {
         sortable: true,
         hiddenOnMobile: true,
       },
+      {key:'age_groups',}
     ],
   },
 

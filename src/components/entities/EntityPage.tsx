@@ -1,5 +1,12 @@
 "use client";
 
+/* Display child data in Table*/
+/* Call any modals */
+/* Add child data */
+/* Update child data */
+/* delete child data*/
+
+
 import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 
