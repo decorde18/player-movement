@@ -75,6 +75,7 @@ First, run the development server:
 npm run dev
 
 
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
@@ -96,60 +97,4 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-# ENVIRONMENT VARIABLES
 
-
-# 1. Database Connection (MySQL)
-DATABASE_URL="mysql://u676616277_team_creation:Latin4488hos1*@srv903.hstgr.io:3306/u676616277_team_creation"
-PORT=3000
-
-
-
-
-
-
-# 2. NextAuth Configuration
-NEXTAUTH_SECRET="fakesecret123456789"
-NEXTAUTH_URL="http://localhost:3000"
-
-
-# 3. Authentication Bypass (Development Purposes Only)
-AUTH_BYPASS_ENABLED="true"
-NEXT_PUBLIC_AUTH_BYPASS_ENABLED="true"
-BYPASS_USER_EMAIL="admin@example.com"
-BYPASS_USER_ID="1"
-
-
-# 4. SMTP Settings for Emailer (Nodemailer)
-SMTP_HOST="smtp.mailtrap.io"
-SMTP_PORT="2525"
-SMTP_USER="smtp_user"
-SMTP_PASSWORD="smtp_password"
-SMTP_FROM_EMAIL="noreply@example.com"
-
-# ENVIRONMENT VARIABLES
-
-
-# 1. Database Connection (MySQL)
-DATABASE_URL="mysql://u676616277_team_creation:Latin4488hos1*@srv903.hstgr.io:3306/u676616277_team_creation"
-PORT=3000
-
-
-# 2. NextAuth Configuration
-NEXTAUTH_SECRET="fakesecret123456789"
-NEXTAUTH_URL="http://localhost:3000"
-
-
-# 3. Authentication Bypass (Development Purposes Only)
-AUTH_BYPASS_ENABLED="true"
-NEXT_PUBLIC_AUTH_BYPASS_ENABLED="true"
-BYPASS_USER_EMAIL="admin@example.com"
-BYPASS_USER_ID="1"
-
-
-# 4. SMTP Settings for Emailer (Nodemailer)
-SMTP_HOST="smtp.mailtrap.io"
-SMTP_PORT="2525"
-SMTP_USER="smtp_user"
-SMTP_PASSWORD="smtp_password"
-SMTP_FROM_EMAIL="noreply@example.com"
