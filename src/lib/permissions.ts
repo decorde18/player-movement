@@ -22,24 +22,77 @@ export interface AuthenticatedUser {
 /**
  * Build dynamic Prisma scope filters based on the user's role and tenant parameters.
  */
-export function getScopeFilters(session: Session | null) {
+export function getScopeFilters(
+  session: Session | null,
+  clubIdOverride?: number | null,
+) {
   if (!session || !session.user) {
     throw new Error("Unauthorized: Active session required.");
   }
 
   const user = session.user as unknown as AuthenticatedUser;
   const role = user.role;
-  const clubId = user.clubId;
+  const clubId = clubIdOverride !== undefined && clubIdOverride !== null ? clubIdOverride : user.clubId;
   const customRoles = user.roles || {};
 
-  // 1. System Admin - Full, unrestricted scope
+  // 1. System Admin - Full, unrestricted scope (unless clubIdOverride is provided)
   if (role === "system_admin") {
+    if (clubIdOverride) {
+      return {
+        role,
+        isSystemAdmin: true,
+        isClubAdmin: false,
+        isAgeGroupAdmin: false,
+        isCoach: false,
+        clubId: clubIdOverride,
+        filters: {
+          player: () => ({
+            season_players: {
+              some: {
+                club_id: clubIdOverride,
+              },
+            },
+          }),
+          club: () => ({ id: clubIdOverride }),
+          season: () => ({
+            club_seasons: {
+              some: {
+                club_id: clubIdOverride,
+              },
+            },
+          }),
+          event: () => ({
+            seasons: {
+              club_seasons: {
+                some: {
+                  club_id: clubIdOverride,
+                },
+              },
+            },
+          }),
+          session: () => ({
+            events: {
+              seasons: {
+                club_seasons: {
+                  some: {
+                    club_id: clubIdOverride,
+                  },
+                },
+              },
+            },
+          }),
+          team: () => ({ club_id: clubIdOverride }),
+        },
+      };
+    }
+
     return {
       role,
       isSystemAdmin: true,
       isClubAdmin: false,
       isAgeGroupAdmin: false,
       isCoach: false,
+      clubId: null,
       filters: {
         player: () => ({}),
         club: () => ({}),
@@ -66,7 +119,13 @@ export function getScopeFilters(session: Session | null) {
       isCoach: false,
       clubId,
       filters: {
-        player: () => ({ club_id: clubId }),
+        player: () => ({
+          season_players: {
+            some: {
+              club_id: clubId,
+            },
+          },
+        }),
         club: () => ({ id: clubId }),
         season: () => ({
           club_seasons: {
@@ -119,12 +178,17 @@ export function getScopeFilters(session: Session | null) {
       filters: {
         player: () => {
           const filter: any = {};
-          if (clubId) filter.club_id = clubId;
-          // Filter players who are assigned to those season age groups
           if (allowedAgeGroupIds.length > 0) {
             filter.season_players = {
               some: {
+                ...(clubId ? { club_id: clubId } : {}),
                 season_age_group_id: { in: allowedAgeGroupIds },
+              },
+            };
+          } else if (clubId) {
+            filter.season_players = {
+              some: {
+                club_id: clubId,
               },
             };
           }
@@ -202,11 +266,17 @@ export function getScopeFilters(session: Session | null) {
     filters: {
       player: () => {
         const filter: any = {};
-        if (clubId) filter.club_id = clubId;
         if (allowedTeamIds.length > 0) {
           filter.season_players = {
             some: {
+              ...(clubId ? { club_id: clubId } : {}),
               season_team_id: { in: allowedTeamIds },
+            },
+          };
+        } else if (clubId) {
+          filter.season_players = {
+            some: {
+              club_id: clubId,
             },
           };
         } else {

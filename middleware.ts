@@ -10,7 +10,7 @@ const PUBLIC_PATHS = [
 ];
 
 export async function middleware(req: NextRequest) {
-  console.log("here");
+
   // Dev mode bypass
   const devBypass =
     process.env.NODE_ENV === "development" &&
@@ -38,7 +38,7 @@ export async function middleware(req: NextRequest) {
   const authToken = token as unknown as {
     roles?: { isSystemAdmin?: boolean };
   };
-  console.log(authToken);
+ 
   if (pathname.startsWith("/admin") && !authToken.roles?.isSystemAdmin) {
     const url = req.nextUrl.clone();
     url.pathname = "/";

@@ -3,7 +3,7 @@
 import db from "@/lib/db";
 import { cookies } from "next/headers";
 import { getServerSession } from "next-auth/next";
-
+import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { verifyAdmin } from "../auth/auth-utils";
 
@@ -17,14 +17,14 @@ export async function getActiveClubId() {
     const activeClubId = cookieStore.get("activeClubId")?.value;
     if (activeClubId) return parseInt(activeClubId);
 
-    const [rows]: any = await db.query(
-      `SELECT id FROM clubs ORDER BY name ASC LIMIT 1`,
-    );
-    const firstClub = (rows as { id: number }[])[0];
+    const firstClub = await db.clubs.findFirst({
+      orderBy: { name: "asc" },
+      select: { id: true },
+    });
     return firstClub ? firstClub.id : null;
   }
 
-  return user.club_id;
+  return user.clubId || null;
 }
 
 export async function setActiveClub(clubId: string) {
@@ -42,6 +42,8 @@ export async function createClub(formData: FormData) {
   const name = formData.get("name") as string;
   if (!name) throw new Error("Club name is required");
 
-  await db.query(`INSERT INTO clubs (name) VALUES (?)`, [name]);
+  await db.clubs.create({
+    data: { name },
+  });
   revalidatePath("/admin/clubs");
 }

@@ -3,7 +3,7 @@ import SignOutButton from "@/components/SignOutButton";
 
 export default async function DashboardPage() {
   const session = await requireServerSession();
-  console.log(session);
+
   return (
     <div className='min-h-screen flex items-start justify-center bg-background text-text p-8'>
       <div className='w-full max-w-3xl bg-surface rounded-xl shadow-lg border border-border p-8'>

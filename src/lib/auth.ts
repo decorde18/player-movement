@@ -27,14 +27,17 @@ export const authOptions: NextAuthOptions = {
           if (user && user.passwordHash) {
             const isSystemAdmin = user.role === "system_admin";
             const isClubAdmin = user.role === "club_admin";
+            const isAgeGroupAdmin = user.role === "age_group_admin";
             const isCoach = user.role === "coach";
 
             const roles = {
               isSystemAdmin,
               isClubAdmin,
-              isAgeGroupAdmin: false,
+              isAgeGroupAdmin,
               isCoach,
-              ageGroupIds: [],
+              ageGroupIds: (user as any).assigned_age_group_id
+                ? [(user as any).assigned_age_group_id]
+                : [],
               coachTeamIds: user.assigned_team_id
                 ? [user.assigned_team_id]
                 : [],

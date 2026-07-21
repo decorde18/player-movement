@@ -138,9 +138,9 @@ export function useEntityPage<T extends Record<string, unknown>>({
       // Defer to parent refresh via initialData — no fake id
       closeForm();
       toast.success(`${config.singular} created successfully`);
-    } catch {
+    } catch (error) {
       toast.error(`Failed to create ${config.singular.toLowerCase()}`);
-      throw; // re-throw so form can stay open if desired
+      throw error; // re-throw so form can stay open if desired
     }
   };
 
@@ -158,9 +158,9 @@ export function useEntityPage<T extends Record<string, unknown>>({
       );
       closeForm();
       toast.success(`${config.singular} updated successfully`);
-    } catch {
+    } catch (error) {
       toast.error(`Failed to update ${config.singular.toLowerCase()}`);
-      throw;
+      throw error;
     }
   };
 
@@ -175,12 +175,12 @@ export function useEntityPage<T extends Record<string, unknown>>({
       );
       closeDeleteDialog();
       toast.success(`${config.singular} deleted successfully`);
-    } catch {
+    } catch (error) {
       setDeleteError(
         `Failed to delete ${config.singular}. Please try again.`,
       );
       toast.error(`Failed to delete ${config.singular.toLowerCase()}`);
-      throw;
+      throw error;
     }
   };
 

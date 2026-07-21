@@ -3,6 +3,7 @@
 import db from "@/lib/db";
 import { getServerAuthSession } from "@/lib/auth";
 import { getScopeFilters } from "@/lib/permissions";
+import { getActiveClubId } from "@/lib/actions/clubs";
 import { revalidatePath } from "next/cache";
 
 export interface SeasonMutationInput {
@@ -25,7 +26,8 @@ export interface SeasonAgeGroupMutationInput {
  */
 export async function getSeasonsDashboardData() {
   const session = await getServerAuthSession();
-  const scope = getScopeFilters(session);
+  const activeClubId = await getActiveClubId();
+  const scope = getScopeFilters(session, activeClubId);
   const seasonFilter = scope.filters.season();
 
   const [seasons, ageGroups] = await Promise.all([

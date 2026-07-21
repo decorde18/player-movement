@@ -6,6 +6,7 @@ import CrudDashboard, { ColumnConfig } from "@/components/admin/CrudDashboard";
 import Input from "@/components/ui/Input";
 import { Users, Calendar } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 export default function PlayersAdminPage() {
   const [data, setData] = useState<any>(null);
@@ -38,8 +39,8 @@ export default function PlayersAdminPage() {
   const { players, clubs, seasonAgeGroups, userScope } = data;
 
   const handleSave = async (form: any) => {
-    const isNew = !form.id;
     const res = await createPlayer({
+      id: form.id ? Number(form.id) : undefined,
       first_name: form.first_name,
       last_name: form.last_name,
       date_of_birth: form.date_of_birth,
@@ -81,7 +82,12 @@ export default function PlayersAdminPage() {
             {p.last_name[0]}
           </div>
           <div>
-            <span className='block font-bold'>{p.first_name} {p.last_name}</span>
+            <Link 
+              href={`/admin/players/${p.id}`}
+              className='block font-bold text-primary hover:underline hover:text-primary-hover cursor-pointer transition-colors'
+            >
+              {p.first_name} {p.last_name}
+            </Link>
             {p.season_players?.[0]?.tryout_number && (
               <span className='inline-block text-[0.65rem] font-bold px-1.5 py-0.5 rounded bg-accent/10 text-accent mt-0.5'>
                 Tryout #{p.season_players[0].tryout_number}
@@ -104,7 +110,23 @@ export default function PlayersAdminPage() {
       type: "select",
       required: true,
       options: clubs.map((c: any) => ({ value: c.id, label: c.name })),
-      render: (p: any) => <span className='text-xs font-semibold text-muted'>{p.clubs?.name || "No Club"}</span>,
+      render: (p: any) => {
+        if (p.season_players && p.season_players.length > 0) {
+          const clubNames = Array.from(new Set(p.season_players.map((sp: any) => sp.clubs?.name).filter(Boolean)));
+          if (clubNames.length > 0) {
+            return (
+              <div className='flex flex-wrap gap-1'>
+                {clubNames.map((name: any, idx) => (
+                  <span key={idx} className='inline-block text-[0.65rem] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20'>
+                    {name}
+                  </span>
+                ))}
+              </div>
+            );
+          }
+        }
+        return <span className='text-xs font-semibold text-muted'>{p.clubs?.name || "No Club"}</span>;
+      },
     },
     {
       key: "date_of_birth",

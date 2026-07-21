@@ -5,29 +5,29 @@ Coaching App — Implementation Blueprint
 Stack: Next.js, React, MySQL/MariaDB (Hostinger DB u676616277_team_creation), Prisma. Work top to bottom — each phase builds on the last and should be usable/demoable on its own before moving on.
 
 Phase 0 — Foundations
-  • [ ] Spin up a local/staging copy of u676616277_team_creation (never develop against production data)
-  • [ ] Set up Next.js project (App Router) with Prisma connected to the MySQL DB
-  • [ ] Run prisma db pull against the existing schema to generate a baseline Prisma schema
-  • [ ] Apply coaching_app_migration.sql to the staging DB
-  • [ ] Re-run prisma db pull (or hand-edit schema.prisma) to bring the new tables into Prisma
-  • [ ] Decide on auth approach (NextAuth vs custom) — reuse existing users table (email/password_hash)
-  • [ ] Set up basic project structure: app/, components/, lib/, hooks/
+  • [x] Spin up a local/staging copy of u676616277_team_creation (never develop against production data)
+  • [x] Set up Next.js project (App Router) with Prisma connected to the MySQL DB
+  • [x] Run prisma db pull against the existing schema to generate a baseline Prisma schema
+  • [x] Apply coaching_app_migration.sql to the staging DB
+  • [x] Re-run prisma db pull (or hand-edit schema.prisma) to bring the new tables into Prisma
+  • [x] Decide on auth approach (NextAuth vs custom) — reuse existing users table (email/password_hash)
+  • [x] Set up basic project structure: app/, components/, lib/, hooks/
 Phase 1 — Auth & Roles
-  • [ ] Login/session handling against users
-  • [ ] Middleware/helper to resolve a logged-in user's full permission set: 
-    ○ [ ] Global role from users.role (system_admin / club_admin / coach)
-    ○ [ ] Per-age-group roles from age_group_staff
-    ○ [ ] Per-team coaching assignments from team_coaches
-  • [ ] Central permission-check utility (e.g. can(user, action, resource)) used by every API route
-  • [ ] Basic admin screen: assign/remove age_group_staff and team_coaches rows
+  • [x] Login/session handling against users
+  • [x] Middleware/helper to resolve a logged-in user's full permission set: 
+    ○ [x] Global role from users.role (system_admin / club_admin / coach)
+    ○ [x] Per-age-group roles from user.assigned_age_group_id
+    ○ [x] Per-team coaching assignments from user.assigned_team_id
+  • [x] Central permission-check utility (e.g. can(user, action, resource)) used by every API route
+  • [x] Basic admin screen: assign/remove user roles, club, age group, and team scopes (Staff Registry)
 Phase 2 — Core Data (Players, Age Groups, Seasons, Teams)
-  • [ ] Season/age-group admin views (create/edit seasons, season_age_groups)
-  • [ ] Player CRUD + roster import (bulk add players to players / season_players)
+  • [x] Season/age-group admin views (create/edit seasons, season_age_groups)
+  • [x] Player CRUD + roster import (bulk add players to players / season_players)
   • [ ] Team CRUD (teams, season_teams) — permanent teams tied to a season + age group
-  • [ ] Player detail page: profile, current rating, current permanent team, note history (read-only for now)
+  • [x] Player detail page: profile, current rating, current permanent team, note history (timeline + note CRUD)
 Phase 3 — Events & Sessions
-  • [ ] Event CRUD (events, event_divisions) — coordinator-only creation, scoped to their age group(s)
-  • [ ] Session CRUD under an event (sessions) — multi-day support
+  • [x] Event CRUD (events, event_divisions) — coordinator-only creation, scoped to their age group(s)
+  • [x] Session CRUD under an event (sessions) — multi-day support
   • [ ] Event roster screen: list all players in the age group, mark event-level availability (event_players) 
     ○ [ ] Default view hides "unavailable" players
     ○ [ ] Toggle/filter to reveal them when needed

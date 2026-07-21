@@ -9,23 +9,26 @@ datasource db {
 }
 
 model User {
-  id               Int           @id @default(autoincrement())
-  name             String        @db.VarChar(255)
-  email            String        @unique(map: "email") @db.VarChar(255)
-  passwordHash     String?       @map("password_hash") @db.VarChar(255)
-  password         String?       @db.VarChar(255)
-  role             users_role    @default(coach)
-  assigned_team_id Int?
-  created_at       DateTime?     @default(now()) @db.Timestamp(0)
-  resetToken       String?       @map("reset_token") @db.VarChar(255)
-  resetTokenExpiry DateTime?     @map("reset_token_expiry") @db.DateTime(0)
-  club_id          Int?
-  coach_notes      coach_notes[]
-  clubs            clubs?        @relation(fields: [club_id], references: [id], onUpdate: Restrict, map: "fk_user_club")
-  season_teams     season_teams? @relation(fields: [assigned_team_id], references: [id], onUpdate: Restrict, map: "fk_user_season_team")
+  id                    Int           @id @default(autoincrement())
+  name                  String        @db.VarChar(255)
+  email                 String        @unique(map: "email") @db.VarChar(255)
+  passwordHash          String?       @map("password_hash") @db.VarChar(255)
+  password              String?       @db.VarChar(255)
+  role                  users_role    @default(coach)
+  assigned_team_id      Int?
+  assigned_age_group_id Int?
+  created_at            DateTime?     @default(now()) @db.Timestamp(0)
+  resetToken            String?       @map("reset_token") @db.VarChar(255)
+  resetTokenExpiry      DateTime?     @map("reset_token_expiry") @db.DateTime(0)
+  club_id               Int?
+  coach_notes           coach_notes[]
+  clubs                 clubs?        @relation(fields: [club_id], references: [id], onUpdate: Restrict, map: "fk_user_club")
+  season_teams          season_teams? @relation(fields: [assigned_team_id], references: [id], onUpdate: Restrict, map: "fk_user_season_team")
+  age_groups            age_groups?   @relation(fields: [assigned_age_group_id], references: [id], onUpdate: Restrict, map: "fk_user_age_group")
 
   @@index([club_id], map: "fk_user_club")
   @@index([assigned_team_id], map: "fk_user_season_team")
+  @@index([assigned_age_group_id], map: "fk_user_age_group")
   @@map("users")
 }
 
@@ -36,6 +39,7 @@ model age_groups {
   dob_end           DateTime            @db.Date
   created_at        DateTime?           @default(now()) @db.Timestamp(0)
   season_age_groups season_age_groups[]
+  users             User[]
 }
 
 model club_seasons {
@@ -49,13 +53,13 @@ model club_seasons {
 }
 
 model clubs {
-  id           Int            @id @default(autoincrement())
-  name         String         @db.VarChar(255)
-  created_at   DateTime?      @default(now()) @db.Timestamp(0)
-  club_seasons club_seasons[]
-  players      players[]
-  teams        teams[]
-  users        User[]
+  id             Int              @id @default(autoincrement())
+  name           String           @db.VarChar(255)
+  created_at     DateTime?        @default(now()) @db.Timestamp(0)
+  club_seasons   club_seasons[]
+  season_players season_players[]
+  teams          teams[]
+  users          User[]
 }
 
 model coach_notes {
@@ -108,13 +112,9 @@ model players {
   date_of_birth   DateTime?         @db.Date
   gender          String?           @db.VarChar(20)
   created_at      DateTime?         @default(now()) @db.Timestamp(0)
-  club_id         Int?
   coach_notes     coach_notes[]
-  clubs           clubs?            @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_player_club")
   season_players  season_players[]
   session_players session_players[]
-
-  @@index([club_id], map: "fk_player_club")
 }
 
 model season_age_groups {
@@ -138,6 +138,7 @@ model season_players {
   id                  Int               @id @default(autoincrement())
   player_id           Int
   season_age_group_id Int
+  club_id             Int?
   tryout_number       String?           @db.VarChar(50)
   position            String?           @db.VarChar(50)
   rating              Int?              @default(0)
@@ -147,10 +148,13 @@ model season_players {
   players             players           @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_players_ibfk_1")
   season_age_groups   season_age_groups @relation(fields: [season_age_group_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_players_ibfk_2")
   season_teams        season_teams?     @relation(fields: [season_team_id], references: [id], onUpdate: Restrict, map: "season_players_ibfk_3")
+  clubs               clubs?            @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_players_ibfk_4")
 
-  @@unique([player_id, season_age_group_id], map: "player_id")
+  @@unique([player_id, season_age_group_id, club_id], map: "player_season_club")
+  @@index([player_id], map: "player_id")
   @@index([season_age_group_id], map: "season_age_group_id")
   @@index([season_team_id], map: "season_team_id")
+  @@index([club_id], map: "club_id")
 }
 
 model seasons {

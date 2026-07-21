@@ -8,20 +8,20 @@ export async function createAgeGroup(data: {
   dob_start: string;
   dob_end: string;
 }) {
-  const connection = await db.getConnection();
   try {
-    await connection.query(
-      `INSERT INTO age_groups (name, dob_start, dob_end) VALUES (?, ?, ?)`,
-      [data.name, data.dob_start, data.dob_end],
-    );
+    await db.age_groups.create({
+      data: {
+        name: data.name,
+        dob_start: new Date(data.dob_start),
+        dob_end: new Date(data.dob_end),
+      },
+    });
     revalidatePath("/admin/age-groups");
     revalidatePath("/admin/seasons");
     return { success: true };
   } catch (error) {
     console.error("Failed to create age group:", error);
     throw error;
-  } finally {
-    connection.release();
   }
 }
 
@@ -29,46 +29,45 @@ export async function updateAgeGroup(
   id: number,
   data: { name: string; dob_start: string; dob_end: string },
 ) {
-  const connection = await db.getConnection();
   try {
-    await connection.query(
-      `UPDATE age_groups SET name = ?, dob_start = ?, dob_end = ? WHERE id = ?`,
-      [data.name, data.dob_start, data.dob_end, id],
-    );
+    await db.age_groups.update({
+      where: { id },
+      data: {
+        name: data.name,
+        dob_start: new Date(data.dob_start),
+        dob_end: new Date(data.dob_end),
+      },
+    });
     revalidatePath("/admin/age-groups");
     revalidatePath("/admin/seasons");
     return { success: true };
   } catch (error) {
     console.error("Failed to update age group:", error);
     throw error;
-  } finally {
-    connection.release();
   }
 }
 
 export async function deleteAgeGroup(id: number) {
-  const connection = await db.getConnection();
   try {
     // Check if linked to seasons
-    const [linked]: any = await connection.query(
-      `SELECT id FROM season_age_groups WHERE age_group_id = ? LIMIT 1`,
-      [id],
-    );
+    const linked = await db.season_age_groups.findFirst({
+      where: { age_group_id: id },
+    });
 
-    if (linked.length > 0) {
+    if (linked) {
       throw new Error(
         "Cannot delete age group because it is linked to one or more seasons.",
       );
     }
 
-    await connection.query(`DELETE FROM age_groups WHERE id = ?`, [id]);
+    await db.age_groups.delete({
+      where: { id },
+    });
     revalidatePath("/admin/age-groups");
     revalidatePath("/admin/seasons");
     return { success: true };
   } catch (error) {
     console.error("Failed to delete age group:", error);
     throw error;
-  } finally {
-    connection.release();
   }
 }
