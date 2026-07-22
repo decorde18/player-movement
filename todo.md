@@ -23,17 +23,17 @@ Phase 1 — Auth & Roles
 Phase 2 — Core Data (Players, Age Groups, Seasons, Teams)
   • [x] Season/age-group admin views (create/edit seasons, season_age_groups)
   • [x] Player CRUD + roster import (bulk add players to players / season_players)
-  • [ ] Team CRUD (teams, season_teams) — permanent teams tied to a season + age group
+  • [x] Team CRUD (teams, season_teams) — permanent teams tied to a season + age group
   • [x] Player detail page: profile, current rating, current permanent team, note history (timeline + note CRUD)
 Phase 3 — Events & Sessions
   • [x] Event CRUD (events, event_divisions) — coordinator-only creation, scoped to their age group(s)
   • [x] Session CRUD under an event (sessions) — multi-day support
-  • [ ] Event roster screen: list all players in the age group, mark event-level availability (event_players) 
-    ○ [ ] Default view hides "unavailable" players
-    ○ [ ] Toggle/filter to reveal them when needed
-  • [ ] Session attendance screen: mark present/absent/excused (session_players.attendance_status) 
-    ○ [ ] Editable by coach or coordinator
-    ○ [ ] Players marked unavailable for the event start hidden here too, same reveal toggle
+  • [x] Event roster screen: list all players in the age group, mark event-level availability (event_players) 
+    ○ [x] Default view hides "unavailable" players
+    ○ [x] Toggle/filter to reveal them when needed
+  • [x] Session attendance screen: mark present/absent/excused (session_players.attendance_status) 
+    ○ [x] Editable by coach or coordinator
+    ○ [x] Players marked unavailable for the event start hidden here too, same reveal toggle
 Phase 4 — Fields/Groups & Drag-and-Drop Movement
   • [ ] Session fields/groups CRUD (session_fields) scoped to a session
   • [ ] "Carry over from previous session" logic — default a new session's groupings to the prior session's

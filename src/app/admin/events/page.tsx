@@ -22,8 +22,10 @@ import {
   FolderDot,
   PlayCircle,
   HelpCircle,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 export default function EventsAdminPage() {
   const [data, setData] = useState<any>(null);
@@ -553,13 +555,23 @@ export default function EventsAdminPage() {
                           </div>
                         </div>
 
-                        <button
-                          onClick={() => handleDeleteSession(sess.id, sess.name)}
-                          className='p-1.5 rounded-lg text-muted/40 hover:text-danger hover:bg-danger/10 transition-all opacity-0 group-hover/sess:opacity-100 cursor-pointer'
-                          title='Delete Session'
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className='flex items-center gap-1 opacity-0 group-hover/sess:opacity-100 transition-all'>
+                          <Link
+                            href={`/admin/sessions/${sess.id}`}
+                            className='p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-all cursor-pointer flex items-center gap-1 text-[0.65rem] font-bold'
+                            title='Manage Roster & Attendance'
+                          >
+                            <Users size={14} />
+                            Roster
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteSession(sess.id, sess.name)}
+                            className='p-1.5 rounded-lg text-muted/40 hover:text-danger hover:bg-danger/10 transition-all cursor-pointer'
+                            title='Delete Session'
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}

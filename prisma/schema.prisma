@@ -99,6 +99,7 @@ model events {
   created_at      DateTime?         @default(now()) @db.Timestamp(0)
   coach_notes     coach_notes[]
   event_divisions event_divisions[]
+  event_players   event_players[]
   seasons         seasons           @relation(fields: [season_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "events_ibfk_1")
   sessions        sessions[]
 
@@ -113,6 +114,7 @@ model players {
   gender          String?           @db.VarChar(20)
   created_at      DateTime?         @default(now()) @db.Timestamp(0)
   coach_notes     coach_notes[]
+  event_players   event_players[]
   season_players  season_players[]
   session_players session_players[]
 }
@@ -245,9 +247,27 @@ model season_teams {
   @@index([season_age_group_id], map: "season_age_group_id")
 }
 
+model event_players {
+  id                  Int                                @id @default(autoincrement())
+  event_id            Int
+  player_id           Int
+  availability_status event_players_availability_status? @default(available)
+  created_at          DateTime?                          @default(now()) @db.Timestamp(0)
+  events              events                             @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_event_players_event")
+  players             players                            @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_event_players_player")
+
+  @@unique([event_id, player_id], map: "event_player_unique")
+  @@index([player_id], map: "fk_event_players_player")
+}
+
 enum events_event_type {
   tryout
   ranking
+}
+
+enum event_players_availability_status {
+  available
+  unavailable
 }
 
 enum session_players_attendance_status {
