@@ -38,9 +38,9 @@
   --padding-xlarge: 2.4rem;
 
   /* ==================== Typography & Fonts (from theme.js) ==================== */
-  --font-family-body: var(--font-inter), "Inter", sans-serif;
+  --font-family-body: var(--font-poppins), "Poppins", sans-serif;
   --font-family-heading: var(--font-poppins), "Poppins", sans-serif;
-  --font-family-main: "Arial", sans-serif;
+  --font-family-main: var(--font-poppins), "Poppins", sans-serif;
   --font-size-title: 2rem;
   --font-size-subtitle: 1.5rem;
   --font-size-small: 1rem;

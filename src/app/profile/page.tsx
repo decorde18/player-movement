@@ -2,6 +2,7 @@
 
 import useRequireAuth from "@/hooks/useRequireAuth";
 import SignOutButton from "@/components/SignOutButton";
+import ToBeCreated from "@/components/ui/ToBeCreated";
 
 export default function ProfilePage() {
   const { session, status } = useRequireAuth();
@@ -19,6 +20,7 @@ export default function ProfilePage() {
             <p className='text-slate-500 dark:text-slate-400'>
               Client-side guarded page using <strong>useRequireAuth()</strong>.
             </p>
+            <ToBeCreated/>
           </div>
           <div>
             <SignOutButton />

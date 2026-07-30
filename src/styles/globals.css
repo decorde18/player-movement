@@ -41,7 +41,7 @@
 
   html,
   body {
-    /* Tailwind's base reset handles font, but we ensure our CSS variables are used */
+    --font-family-body: var(--font-poppins), "Poppins", sans-serif;
     font-family: var(--font-family-body);
 
     /* These consume the resolved color custom properties directly */

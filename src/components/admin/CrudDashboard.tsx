@@ -53,6 +53,9 @@ interface CrudDashboardProps {
     seasonAgeGroups: any[];
     defaultClubId?: number;
     onImportSuccess: () => void;
+    seasons?: { id: number; name: string }[];
+    activeSeasonId?: number;
+    events?: { id: number; name: string; season_id: number }[];
   };
   // Hook for adding extra fields dynamically (e.g. Season cloning options)
   extraAddFields?: (
@@ -613,6 +616,9 @@ export default function CrudDashboard({
                 seasonAgeGroups={csvImportConfig.seasonAgeGroups}
                 defaultClubId={csvImportConfig.defaultClubId}
                 onImportSuccess={csvImportConfig.onImportSuccess}
+                seasons={csvImportConfig.seasons}
+                activeSeasonId={csvImportConfig.activeSeasonId}
+                events={csvImportConfig.events}
               />
             </div>
           )}

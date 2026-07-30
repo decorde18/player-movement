@@ -11,21 +11,36 @@ import {
   Award, 
   ClipboardList, 
   LogOut, 
-  LayoutDashboard 
+  LayoutDashboard,
+  Kanban
 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { setActiveClub } from "@/lib/actions/clubs";
+import { setActiveSeason } from "@/lib/actions/season-actions";
+import { setActiveAgeGroup } from "@/lib/actions/active-age-group";
 
 interface NavBarProps {
   user?: any;
   clubs?: { id: number; name: string }[];
   activeClubId?: number;
+  seasons?: { id: number; name: string }[];
+  activeSeasonId?: number;
+  ageGroups?: { id: number; gender: string; age_groups: { name: string } }[];
+  activeAgeGroupId?: number;
 }
 
-function NavBar({ user, clubs = [], activeClubId }: NavBarProps) {
+function NavBar({ 
+  user, 
+  clubs = [], 
+  activeClubId, 
+  seasons = [], 
+  activeSeasonId, 
+  ageGroups = [], 
+  activeAgeGroupId 
+}: NavBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -57,6 +72,22 @@ function NavBar({ user, clubs = [], activeClubId }: NavBarProps) {
     const val = e.target.value;
     startTransition(async () => {
       await setActiveClub(val);
+      router.refresh();
+    });
+  };
+
+  const handleSeasonChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    startTransition(async () => {
+      await setActiveSeason(val);
+      router.refresh();
+    });
+  };
+
+  const handleAgeGroupChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    startTransition(async () => {
+      await setActiveAgeGroup(val);
       router.refresh();
     });
   };
@@ -124,6 +155,13 @@ function NavBar({ user, clubs = [], activeClubId }: NavBarProps) {
       visible: userRole !== "coach", // visible to system_admin, club_admin, age_group_admin
     },
     {
+      id: "player-board",
+      label: "Player Board",
+      path: "/player-board",
+      icon: <Kanban size={18} />,
+      visible: true,
+    },
+    {
       id: "try",
       label: "Evaluation App",
       path: "/admin/try",
@@ -173,9 +211,9 @@ function NavBar({ user, clubs = [], activeClubId }: NavBarProps) {
         </div>
 
         {/* Viewing Context Selector / Badge */}
-        <div className='flex-shrink-0 border-b border-border bg-surface-hover/30'>
+        <div className='flex-shrink-0 border-b border-border bg-surface-hover/30 flex flex-col'>
           {userRole === "system_admin" ? (
-            <div className='p-4'>
+            <div className='p-4 pb-2'>
               <label className='block text-[0.65rem] font-bold text-text-label uppercase tracking-widest mb-1.5'>
                 Viewing Club Context {isPending && <span className='animate-pulse text-primary'>(Switching...)</span>}
               </label>
@@ -194,7 +232,7 @@ function NavBar({ user, clubs = [], activeClubId }: NavBarProps) {
               </select>
             </div>
           ) : (
-            <div className='p-4 text-xs space-y-1.5'>
+            <div className='p-4 pb-2 text-xs space-y-1.5'>
               <div className='flex items-center gap-1.5'>
                 <span className='text-[0.65rem] font-bold text-text-label uppercase tracking-widest'>Viewing Role:</span>
                 <span className='font-bold text-primary px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 text-[10px] uppercase'>
@@ -209,6 +247,49 @@ function NavBar({ user, clubs = [], activeClubId }: NavBarProps) {
               )}
             </div>
           )}
+
+          <div className='p-4 pt-2 border-t border-border/40'>
+            <label className='block text-[0.65rem] font-bold text-text-label uppercase tracking-widest mb-1.5'>
+              Active Season Context
+            </label>
+            <select
+              value={activeSeasonId || ""}
+              onChange={handleSeasonChange}
+              disabled={isPending}
+              className='w-full text-xs font-semibold bg-surface py-2 px-3 border border-border rounded-lg outline-none focus:ring-1 focus:ring-primary cursor-pointer transition-all disabled:opacity-50'
+            >
+              {seasons.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className='p-4 pt-2 border-t border-border/40'>
+            <label className='block text-[0.65rem] font-bold text-text-label uppercase tracking-widest mb-1.5'>
+              Active Division
+            </label>
+            <select
+              value={activeAgeGroupId || ""}
+              onChange={handleAgeGroupChange}
+              disabled={isPending || ageGroups.length === 0}
+              className='w-full text-xs font-semibold bg-surface py-2 px-3 border border-border rounded-lg outline-none focus:ring-1 focus:ring-primary cursor-pointer transition-all disabled:opacity-50'
+            >
+              {ageGroups.length === 0 ? (
+                <option value=''>-- No divisions configured --</option>
+              ) : (
+                <>
+                  <option value=''>-- Select Division --</option>
+                  {ageGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.age_groups.name} ({g.gender})
+                    </option>
+                  ))}
+                </>
+              )}
+            </select>
+          </div>
         </div>
 
         {/* Navigation Menu */}

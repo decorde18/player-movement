@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { verifyAdmin } from "../auth/auth-utils";
 import prisma from "../prisma";
 import { seasonSchema } from "../validations/schemas";
+import { cookies } from "next/headers";
 
 export async function createSeason(data: Record<string, string>) {
   await verifyAdmin();
@@ -15,8 +16,8 @@ export async function createSeason(data: Record<string, string>) {
     const newBody = await prisma.seasons.create({
       data: {
         name: parsedData.name,
-        start_date: parsedData.start_date,
-        end_date: parsedData.end_date,
+        start_date: parsedData.start_date ? new Date(parsedData.start_date) : null,
+        end_date: parsedData.end_date ? new Date(parsedData.end_date) : null,
       },
     });
 
@@ -38,7 +39,11 @@ export async function updateSeason(id: unknown, data: Record<string, string>) {
 
   await prisma.seasons.update({
     where: { id: numId },
-    data: parsedData,
+    data: {
+      name: parsedData.name,
+      start_date: parsedData.start_date ? new Date(parsedData.start_date) : undefined,
+      end_date: parsedData.end_date ? new Date(parsedData.end_date) : undefined,
+    },
   });
 
   revalidatePath("/seasons");
@@ -54,4 +59,22 @@ export async function deleteSeason(id: unknown) {
   });
 
   revalidatePath("/seasons");
+}
+
+export async function getActiveSeasonId() {
+  const cookieStore = await cookies();
+  const activeSeasonId = cookieStore.get("activeSeasonId")?.value;
+  if (activeSeasonId) return parseInt(activeSeasonId);
+
+  const firstSeason = await prisma.seasons.findFirst({
+    orderBy: { start_date: "desc" },
+    select: { id: true },
+  });
+  return firstSeason ? firstSeason.id : null;
+}
+
+export async function setActiveSeason(seasonId: string) {
+  const cookieStore = await cookies();
+  cookieStore.set("activeSeasonId", seasonId, { path: "/" });
+  revalidatePath("/", "layout");
 }

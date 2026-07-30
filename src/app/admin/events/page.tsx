@@ -23,6 +23,9 @@ import {
   PlayCircle,
   HelpCircle,
   Users,
+  Filter,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -36,6 +39,9 @@ export default function EventsAdminPage() {
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
 
+  // Age group filter for events column
+  const [ageGroupFilter, setAgeGroupFilter] = useState<number | "all">("all");
+
   // Inline Forms Visibility States
   const [showSeasonForm, setShowSeasonForm] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
@@ -48,6 +54,7 @@ export default function EventsAdminPage() {
 
   const [eventName, setEventName] = useState("");
   const [eventType, setEventType] = useState<"tryout" | "ranking">("tryout");
+  const [selectedDivisionIds, setSelectedDivisionIds] = useState<number[]>([]);
 
   const [sessionName, setSessionName] = useState("");
   const [sessionDate, setSessionDate] = useState("");
@@ -116,18 +123,24 @@ export default function EventsAdminPage() {
       toast.error("Event Name is required.");
       return;
     }
+    if (selectedDivisionIds.length === 0) {
+      toast.error("Select at least one age group for this event.");
+      return;
+    }
 
     startTransition(async () => {
       const res = await createEvent({
         season_id: selectedSeasonId,
         name: eventName,
         event_type: eventType,
+        season_age_group_ids: selectedDivisionIds,
       });
 
       if (res.success) {
-        toast.success(`Event "${eventName}" created.`);
+        toast.success(`Event "${eventName}" created with ${selectedDivisionIds.length} division(s). All eligible players added as unavailable.`);
         setEventName("");
         setEventType("tryout");
+        setSelectedDivisionIds([]);
         setShowEventForm(false);
         // Reload and set active
         const reloaded = await getEventsDashboardData();
@@ -194,6 +207,13 @@ export default function EventsAdminPage() {
     }
   };
 
+  // Toggle division selection
+  const toggleDivision = (id: number) => {
+    setSelectedDivisionIds((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
+    );
+  };
+
   if (loading) {
     return (
       <div className='min-h-screen flex flex-col items-center justify-center bg-background text-text gap-3'>
@@ -208,6 +228,26 @@ export default function EventsAdminPage() {
   // Active object finders
   const activeSeason = seasons.find((s: any) => s.id === selectedSeasonId);
   const activeEvent = activeSeason?.events.find((e: any) => e.id === selectedEventId);
+
+  // Get available divisions for the active season (for the event creation form)
+  const seasonDivisions = activeSeason?.season_age_groups || [];
+
+  // Filtered events based on age group filter
+  const filteredEvents = activeSeason?.events.filter((e: any) => {
+    if (ageGroupFilter === "all") return true;
+    return e.event_divisions?.some(
+      (ed: any) => ed.season_age_groups?.age_group_id === ageGroupFilter
+    );
+  }) || [];
+
+  // Build unique age groups for the filter dropdown from the active season
+  const filterAgeGroups = seasonDivisions.reduce((acc: any[], div: any) => {
+    const agId = div.age_groups?.id;
+    if (agId && !acc.find((a: any) => a.id === agId)) {
+      acc.push({ id: agId, name: div.age_groups.name });
+    }
+    return acc;
+  }, []);
 
   return (
     <div className='min-h-screen bg-background text-text p-4 md:p-8 animate-fadeIn'>
@@ -309,6 +349,7 @@ export default function EventsAdminPage() {
                     onClick={() => {
                       setSelectedSeasonId(s.id);
                       setSelectedEventId(null);
+                      setAgeGroupFilter("all");
                     }}
                     className={`p-4 rounded-xl border transition-all cursor-pointer ${
                       selectedSeasonId === s.id
@@ -341,19 +382,41 @@ export default function EventsAdminPage() {
                 <Target size={18} className='text-primary' />
                 2. Events
               </h2>
-              {selectedSeasonId && (
-                <button
-                  onClick={() => {
-                    setShowEventForm(!showEventForm);
-                    setShowSeasonForm(false);
-                    setShowSessionForm(false);
-                  }}
-                  className='p-1.5 rounded-lg border border-border bg-surface text-text hover:bg-background transition-all cursor-pointer'
-                  title='Create Event'
-                >
-                  <Plus size={16} />
-                </button>
-              )}
+              <div className='flex items-center gap-1.5'>
+                {/* Age Group Filter */}
+                {selectedSeasonId && filterAgeGroups.length > 0 && (
+                  <div className='relative'>
+                    <select
+                      value={ageGroupFilter}
+                      onChange={(e) => setAgeGroupFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+                      className='text-[0.6rem] font-bold bg-surface border border-border rounded-lg pl-6 pr-2 py-1.5 text-text appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary'
+                      title='Filter events by age group'
+                    >
+                      <option value='all'>All Groups</option>
+                      {filterAgeGroups.map((ag: any) => (
+                        <option key={ag.id} value={ag.id}>
+                          {ag.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Filter size={12} className='absolute left-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none' />
+                  </div>
+                )}
+                {selectedSeasonId && (
+                  <button
+                    onClick={() => {
+                      setShowEventForm(!showEventForm);
+                      setShowSeasonForm(false);
+                      setShowSessionForm(false);
+                      setSelectedDivisionIds([]);
+                    }}
+                    className='p-1.5 rounded-lg border border-border bg-surface text-text hover:bg-background transition-all cursor-pointer'
+                    title='Create Event'
+                  >
+                    <Plus size={16} />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* List and Form Container */}
@@ -370,7 +433,7 @@ export default function EventsAdminPage() {
                       onSubmit={handleCreateEvent}
                       className='bg-background/80 border border-border p-4 rounded-xl space-y-3 animate-fadeIn'
                     >
-                      <h3 className='text-xs font-bold text-text mb-1'>New Event in "{activeSeason?.name}"</h3>
+                      <h3 className='text-xs font-bold text-text mb-1'>New Event in &quot;{activeSeason?.name}&quot;</h3>
                       <Input
                         placeholder='Event Name (e.g. U12 Tryout 2026)'
                         value={eventName}
@@ -397,6 +460,57 @@ export default function EventsAdminPage() {
                           ))}
                         </div>
                       </div>
+
+                      {/* Age Group Selection Checkboxes */}
+                      <div>
+                        <label className='block text-[0.65rem] font-bold text-text-label mb-1.5'>
+                          Age Groups *
+                          <span className='text-muted font-normal ml-1'>(all players will be added as unavailable)</span>
+                        </label>
+                        {seasonDivisions.length === 0 ? (
+                          <div className='text-[0.6rem] text-muted italic p-2 border border-dashed border-border rounded-lg'>
+                            No divisions configured for this season. Go to Seasons to add age groups first.
+                          </div>
+                        ) : (
+                          <div className='space-y-1 max-h-36 overflow-y-auto border border-border rounded-lg p-2 bg-surface'>
+                            {seasonDivisions.map((div: any) => {
+                              const isSelected = selectedDivisionIds.includes(div.id);
+                              const genderColor =
+                                div.gender === "Boys"
+                                  ? "text-blue-500"
+                                  : div.gender === "Girls"
+                                    ? "text-pink-500"
+                                    : "text-emerald-500";
+                              return (
+                                <button
+                                  key={div.id}
+                                  type='button'
+                                  onClick={() => toggleDivision(div.id)}
+                                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[0.65rem] font-semibold transition-all cursor-pointer ${
+                                    isSelected
+                                      ? "bg-primary/10 text-primary border border-primary/30"
+                                      : "hover:bg-background text-text border border-transparent"
+                                  }`}
+                                >
+                                  {isSelected ? (
+                                    <CheckSquare size={14} className='text-primary flex-shrink-0' />
+                                  ) : (
+                                    <Square size={14} className='text-muted/40 flex-shrink-0' />
+                                  )}
+                                  <span>{div.age_groups?.name || div.name}</span>
+                                  <span className={`${genderColor} text-[0.55rem]`}>({div.gender})</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {selectedDivisionIds.length > 0 && (
+                          <p className='text-[0.55rem] text-muted mt-1'>
+                            {selectedDivisionIds.length} division(s) selected
+                          </p>
+                        )}
+                      </div>
+
                       <div className='flex gap-2 pt-1.5 justify-end'>
                         <Button
                           variant='outline'
@@ -408,18 +522,26 @@ export default function EventsAdminPage() {
                           Cancel
                         </Button>
                         <Button variant='primary' size='xs' type='submit' disabled={isPending}>
-                          Create
+                          {isPending ? (
+                            <span className='flex items-center gap-1'>
+                              <Loader2 className='animate-spin' size={12} /> Creating...
+                            </span>
+                          ) : (
+                            "Create Event"
+                          )}
                         </Button>
                       </div>
                     </form>
                   )}
 
-                  {activeSeason?.events.length === 0 ? (
+                  {filteredEvents.length === 0 ? (
                     <div className='text-center py-12 text-muted/60 text-xs italic'>
-                      No events registered for this season.
+                      {ageGroupFilter !== "all"
+                        ? "No events match the selected age group filter."
+                        : "No events registered for this season."}
                     </div>
                   ) : (
-                    activeSeason?.events.map((e: any) => (
+                    filteredEvents.map((e: any) => (
                       <div
                         key={e.id}
                         onClick={() => setSelectedEventId(e.id)}
@@ -441,6 +563,29 @@ export default function EventsAdminPage() {
                             {e.event_type}
                           </span>
                         </div>
+
+                        {/* Division badges */}
+                        {e.event_divisions && e.event_divisions.length > 0 && (
+                          <div className='flex flex-wrap gap-1 mt-1.5'>
+                            {e.event_divisions.map((ed: any) => {
+                              const genderColor =
+                                ed.season_age_groups?.gender === "Boys"
+                                  ? "bg-blue-50 text-blue-600 border-blue-200"
+                                  : ed.season_age_groups?.gender === "Girls"
+                                    ? "bg-pink-50 text-pink-600 border-pink-200"
+                                    : "bg-emerald-50 text-emerald-600 border-emerald-200";
+                              return (
+                                <span
+                                  key={`${ed.event_id}-${ed.season_age_group_id}`}
+                                  className={`px-1.5 py-0.5 text-[0.55rem] font-bold rounded-full border ${genderColor}`}
+                                >
+                                  {ed.season_age_groups?.age_groups?.name || "?"} ({ed.season_age_groups?.gender})
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         <span className='block text-[0.65rem] text-muted mt-1'>
                           Contains {e.sessions.length} evaluation session{e.sessions.length !== 1 ? "s" : ""}
                         </span>

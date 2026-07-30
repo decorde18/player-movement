@@ -1,6 +1,5 @@
 "use client";
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Button from "../ui/Button";
 import { Upload, HelpCircle, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -11,11 +10,15 @@ interface CSVImporterProps {
   seasonAgeGroups: {
     id: number;
     gender: string;
+    season_id: number;
     seasons: { name: string };
     age_groups: { name: string };
   }[];
   onImportSuccess: () => void;
   defaultClubId?: number;
+  seasons?: { id: number; name: string }[];
+  activeSeasonId?: number;
+  events?: { id: number; name: string; season_id: number }[];
 }
 
 // Simple but robust CSV/TSV parser that handles quotes and delimiters
@@ -74,12 +77,18 @@ export default function CSVImporter({
   seasonAgeGroups,
   onImportSuccess,
   defaultClubId,
+  seasons = [],
+  activeSeasonId,
+  events = [],
 }: CSVImporterProps) {
   const [csvText, setCsvText] = useState("");
   const [parsedData, setParsedData] = useState<string[][]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [isParsed, setIsParsed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Import mode: "season" or "event"
+  const [importMode, setImportMode] = useState<"season" | "event">("season");
 
   // Mappings between database fields and CSV column indexes
   const [mappings, setMappings] = useState<Record<string, number>>({
@@ -92,11 +101,34 @@ export default function CSVImporter({
     rating: -1,
   });
 
+  // Track which mappings were auto-guessed
+  const [autoGuessedFields, setAutoGuessedFields] = useState<Set<string>>(new Set());
+
   // Global settings for the import
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>(
+    activeSeasonId ? activeSeasonId.toString() : ""
+  );
   const [selectedClubId, setSelectedClubId] = useState<string>(
     defaultClubId ? defaultClubId.toString() : ""
   );
   const [selectedAgeGroupId, setSelectedAgeGroupId] = useState<string>("");
+  const [selectedEventId, setSelectedEventId] = useState<string>("");
+
+  useEffect(() => {
+    if (activeSeasonId) {
+      setSelectedSeasonId(activeSeasonId.toString());
+    }
+  }, [activeSeasonId]);
+
+  const filteredSeasonAgeGroups = seasonAgeGroups.filter((g) => {
+    if (!selectedSeasonId) return true;
+    return g.season_id === Number(selectedSeasonId);
+  });
+
+  const filteredEvents = events.filter((e) => {
+    if (!selectedSeasonId) return true;
+    return e.season_id === Number(selectedSeasonId);
+  });
 
   const handleParse = () => {
     if (!csvText.trim()) {
@@ -128,26 +160,36 @@ export default function CSVImporter({
         rating: -1,
       };
 
+      const guessed = new Set<string>();
+
       csvHeaders.forEach((header, index) => {
         const h = header.toLowerCase().replace(/[^a-z0-9]/g, "");
         if (h.includes("first") || h === "fname" || h === "name") {
           newMappings.first_name = index;
+          guessed.add("first_name");
         } else if (h.includes("last") || h === "lname") {
           newMappings.last_name = index;
+          guessed.add("last_name");
         } else if (h.includes("birth") || h.includes("dob") || h === "date") {
           newMappings.date_of_birth = index;
+          guessed.add("date_of_birth");
         } else if (h.includes("gender") || h === "sex") {
           newMappings.gender = index;
+          guessed.add("gender");
         } else if (h.includes("tryout") || h.includes("num")) {
           newMappings.tryout_number = index;
+          guessed.add("tryout_number");
         } else if (h.includes("pos")) {
           newMappings.position = index;
+          guessed.add("position");
         } else if (h.includes("rate") || h.includes("score")) {
           newMappings.rating = index;
+          guessed.add("rating");
         }
       });
 
       setMappings(newMappings);
+      setAutoGuessedFields(guessed);
       setIsParsed(true);
       toast.success("CSV parsed successfully! Map your columns below.");
     } catch (e: any) {
@@ -173,11 +215,27 @@ export default function CSVImporter({
       ...prev,
       [dbField]: index,
     }));
+    // If the user manually changes a mapping, remove it from auto-guessed
+    setAutoGuessedFields((prev) => {
+      const next = new Set(prev);
+      next.delete(dbField);
+      return next;
+    });
   };
 
   const handleImport = async () => {
+    if (!selectedSeasonId) {
+      toast.error("Please select a target Season for the imported players.");
+      return;
+    }
+
     if (!selectedClubId) {
       toast.error("Please select a target Club for the imported players.");
+      return;
+    }
+
+    if (importMode === "event" && !selectedEventId) {
+      toast.error("Please select a target Event for event registration.");
       return;
     }
 
@@ -227,9 +285,12 @@ export default function CSVImporter({
         return;
       }
 
-      const res = await bulkImportPlayers(playersList);
+      const targetEventId = importMode === "event" && selectedEventId ? Number(selectedEventId) : undefined;
+
+      const res = await bulkImportPlayers(playersList, Number(selectedSeasonId), targetEventId);
       if (res.success) {
-        toast.success(`Success! Imported ${res.count} players.`);
+        const modeLabel = importMode === "event" ? "registered for event" : "imported to season";
+        toast.success(`Success! ${res.count} players ${modeLabel}.`);
         setCsvText("");
         setIsParsed(false);
         setParsedData([]);
@@ -258,6 +319,122 @@ export default function CSVImporter({
         </div>
       </div>
 
+      {/* Settings / Mode Panel (Always Visible) */}
+      <div className='mb-6 space-y-4 bg-background/60 p-4 rounded-xl border border-border'>
+        {/* Import Mode Toggle */}
+        <div className='flex flex-wrap items-center gap-2 pb-3 border-b border-border/50'>
+          <span className='text-xs font-bold text-text-label mr-2'>Import Mode:</span>
+          <button
+            type='button'
+            onClick={() => setImportMode("season")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+              importMode === "season"
+                ? "bg-primary text-white border-primary shadow-xs"
+                : "bg-surface border-border text-muted hover:text-text"
+            }`}
+          >
+            Register for Season
+          </button>
+          <button
+            type='button'
+            onClick={() => setImportMode("event")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+              importMode === "event"
+                ? "bg-primary text-white border-primary shadow-xs"
+                : "bg-surface border-border text-muted hover:text-text"
+            }`}
+          >
+            Register for Event
+          </button>
+          {importMode === "event" && (
+            <span className='text-[0.6rem] text-muted md:ml-2'>
+              Players will be registered to season + set as available for the event & all sessions
+            </span>
+          )}
+        </div>
+
+        {/* Configurations */}
+        <div className={`grid grid-cols-1 gap-4 ${importMode === "event" ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
+          <div>
+            <label className='block text-xs font-bold text-text-label mb-1'>Target Season *</label>
+            <select
+              value={selectedSeasonId}
+              onChange={(e) => {
+                setSelectedSeasonId(e.target.value);
+                setSelectedAgeGroupId(""); 
+                setSelectedEventId(""); 
+              }}
+              className='text-xs bg-surface font-semibold py-2.5 px-3 border border-border rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer'
+            >
+              <option value=''>-- Select Target Season --</option>
+              {seasons.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className='block text-xs font-bold text-text-label mb-1'>Target Club *</label>
+            <select
+              value={selectedClubId}
+              onChange={(e) => setSelectedClubId(e.target.value)}
+              className='text-xs bg-surface font-semibold py-2.5 px-3 border border-border rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer'
+            >
+              <option value=''>-- Select Target Club --</option>
+              {clubs.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className='block text-xs font-bold text-text-label mb-1'>
+              Initial Age Group / Division (Optional)
+            </label>
+            <select
+              value={selectedAgeGroupId}
+              onChange={(e) => setSelectedAgeGroupId(e.target.value)}
+              className='text-xs bg-surface font-semibold py-2.5 px-3 border border-border rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer'
+            >
+              <option value=''>-- Do Not Assign Yet (Auto-assign by DOB) --</option>
+              {filteredSeasonAgeGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  [{g.seasons.name}] {g.age_groups.name} ({g.gender})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Event selector (only visible in event mode) */}
+          {importMode === "event" && (
+            <div>
+              <label className='block text-xs font-bold text-text-label mb-1'>Target Event *</label>
+              <select
+                value={selectedEventId}
+                onChange={(e) => setSelectedEventId(e.target.value)}
+                className={`text-xs bg-surface font-semibold py-2.5 px-3 border rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer ${
+                  !selectedEventId ? "border-pink-400 bg-pink-50/30" : "border-border"
+                }`}
+              >
+                <option value=''>-- Select Event --</option>
+                {filteredEvents.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+              {!selectedEventId && (
+                <span className='text-[0.55rem] font-bold text-pink-500 mt-0.5 block'>⚠️ Required for event mode</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {!isParsed ? (
         <div className='space-y-4'>
           <div>
@@ -269,7 +446,7 @@ export default function CSVImporter({
             </label>
             <textarea
               className='font-mono text-xs w-full h-44 p-3 border border-border rounded-xl bg-background/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all resize-y'
-              placeholder="first_name,last_name,dob,gender,tryout_num,position,rating&#10;John,Doe,2014-05-12,Boy,102,Midfielder,8&#10;Jane,Smith,2015-08-22,Girl,204,Forward,7"
+              placeholder={"first_name,last_name,dob,gender,tryout_num,position,rating\nJohn,Doe,2014-05-12,Boy,102,Midfielder,8\nJane,Smith,2015-08-22,Girl,204,Forward,7"}
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
             />
@@ -294,42 +471,6 @@ export default function CSVImporter({
         </div>
       ) : (
         <div className='space-y-6 animate-fadeIn'>
-          {/* Settings Section */}
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-4 bg-background/60 p-4 rounded-xl border border-border'>
-            <div>
-              <label className='block text-xs font-bold text-text-label mb-1'>Target Club *</label>
-              <select
-                value={selectedClubId}
-                onChange={(e) => setSelectedClubId(e.target.value)}
-                className='text-sm bg-surface font-semibold py-2 px-3 border border-border rounded-md w-full focus:outline-none focus:ring-1 focus:ring-primary'
-              >
-                <option value=''>-- Select Target Club --</option>
-                {clubs.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className='block text-xs font-bold text-text-label mb-1'>
-                Initial Age Group / Division (Optional)
-              </label>
-              <select
-                value={selectedAgeGroupId}
-                onChange={(e) => setSelectedAgeGroupId(e.target.value)}
-                className='text-sm bg-surface font-semibold py-2 px-3 border border-border rounded-md w-full focus:outline-none focus:ring-1 focus:ring-primary'
-              >
-                <option value=''>-- Do Not Assign Yet --</option>
-                {seasonAgeGroups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    [{g.seasons.name}] {g.age_groups.name} ({g.gender})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
 
           {/* Mapping Controls */}
           <div>
@@ -337,6 +478,16 @@ export default function CSVImporter({
               <Check size={16} className='text-success' />
               Map Database Fields to CSV Columns
             </h3>
+            <div className='flex items-center gap-4 mb-3 text-[0.6rem] font-bold text-muted'>
+              <span className='flex items-center gap-1'>
+                <span className='w-3 h-3 rounded bg-pink-100 border border-pink-300 inline-block'></span>
+                Required — must be mapped
+              </span>
+              <span className='flex items-center gap-1'>
+                <span className='w-3 h-3 rounded bg-orange-100 border border-orange-300 inline-block'></span>
+                Auto-matched — verify this is correct
+              </span>
+            </div>
             <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3'>
               {/* Field mapping selectors */}
               {[
@@ -347,25 +498,59 @@ export default function CSVImporter({
                 { key: "tryout_number", label: "Tryout Number", required: false },
                 { key: "position", label: "Position", required: false },
                 { key: "rating", label: "Initial Rating (0-10)", required: false },
-              ].map((field) => (
-                <div key={field.key} className='border border-border p-3 rounded-xl bg-background/30 flex flex-col justify-between'>
-                  <span className={`text-xs font-bold ${field.required ? "text-primary" : "text-text-label"}`}>
-                    {field.label}
-                  </span>
-                  <select
-                    value={mappings[field.key]}
-                    onChange={(e) => handleMappingChange(field.key, Number(e.target.value))}
-                    className='text-xs mt-1.5 py-1.5 px-2 bg-surface border border-border rounded w-full'
+              ].map((field) => {
+                const isUnmappedRequired = field.required && mappings[field.key] === -1;
+                const isAutoGuessed = autoGuessedFields.has(field.key) && mappings[field.key] !== -1;
+
+                // Determine style: pink for unmapped required, orange for auto-guessed, default otherwise
+                let containerClass = "border-border bg-background/30";
+                let selectBorderClass = "border-border";
+                let badgeContent = null;
+
+                if (isUnmappedRequired) {
+                  containerClass = "border-pink-400/60 bg-pink-50/40 shadow-sm ring-1 ring-pink-400/20";
+                  selectBorderClass = "border-pink-400/40 focus:ring-pink-500";
+                  badgeContent = (
+                    <span className='text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-pink-100 text-pink-600 border border-pink-300 uppercase tracking-wider animate-pulse'>
+                      ⚠️ Required
+                    </span>
+                  );
+                } else if (isAutoGuessed) {
+                  containerClass = "border-orange-400/60 bg-orange-50/40 shadow-sm ring-1 ring-orange-400/15";
+                  selectBorderClass = "border-orange-400/40 focus:ring-orange-500";
+                  badgeContent = (
+                    <span className='text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 border border-orange-300 uppercase tracking-wider'>
+                      🔶 Auto-matched
+                    </span>
+                  );
+                }
+
+                return (
+                  <div
+                    key={field.key}
+                    className={`border p-3 rounded-xl flex flex-col justify-between transition-all duration-200 ${containerClass}`}
                   >
-                    <option value='-1'>-- Ignore / Set Default --</option>
-                    {headers.map((h, idx) => (
-                      <option key={idx} value={idx}>
-                        Col {idx + 1}: "{h}"
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+                    <div className='flex items-center justify-between gap-1'>
+                      <span className={`text-xs font-bold ${field.required ? "text-primary" : "text-text-label"}`}>
+                        {field.label}
+                      </span>
+                      {badgeContent}
+                    </div>
+                    <select
+                      value={mappings[field.key]}
+                      onChange={(e) => handleMappingChange(field.key, Number(e.target.value))}
+                      className={`text-xs mt-1.5 py-1.5 px-2 bg-surface border rounded w-full outline-none focus:ring-1 focus:ring-primary cursor-pointer ${selectBorderClass}`}
+                    >
+                      <option value='-1'>-- Ignore / Set Default --</option>
+                      {headers.map((h, idx) => (
+                        <option key={idx} value={idx}>
+                          Col {idx + 1}: &quot;{h}&quot;
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -421,10 +606,14 @@ export default function CSVImporter({
             </Button>
             <div className='flex items-center gap-3'>
               <span className='text-xs text-muted'>
-                Ready to import {parsedData.length} records
+                Ready to {importMode === "event" ? "register" : "import"} {parsedData.length} records
               </span>
               <Button onClick={handleImport} disabled={isLoading} variant='success' className='px-6'>
-                {isLoading ? "Importing..." : `Import ${parsedData.length} Players`}
+                {isLoading
+                  ? "Importing..."
+                  : importMode === "event"
+                    ? `Register ${parsedData.length} Players for Event`
+                    : `Import ${parsedData.length} Players`}
               </Button>
             </div>
           </div>

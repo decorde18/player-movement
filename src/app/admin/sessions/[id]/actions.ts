@@ -4,6 +4,7 @@ import db from "@/lib/db";
 import { getServerAuthSession } from "@/lib/auth";
 import { getScopeFilters } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 export async function getSessionRoster(sessionId: number) {
   const sessionUser = await getServerAuthSession();
@@ -39,9 +40,18 @@ export async function getSessionRoster(sessionId: number) {
   }
 
   // 2. Fetch all season_players in those divisions
+  // Filter by activeAgeGroupId from cookies if it matches the event divisions
+  const cookieStore = await cookies();
+  const cookieActiveAgeGroupIdStr = cookieStore.get("activeAgeGroupId")?.value;
+  const cookieActiveAgeGroupId = cookieActiveAgeGroupIdStr ? parseInt(cookieActiveAgeGroupIdStr) : null;
+
+  const targetDivisionIds = cookieActiveAgeGroupId && divisionIds.includes(cookieActiveAgeGroupId)
+    ? [cookieActiveAgeGroupId]
+    : divisionIds;
+
   const seasonPlayers = await db.season_players.findMany({
     where: {
-      season_age_group_id: { in: divisionIds },
+      season_age_group_id: { in: targetDivisionIds },
       // Apply club filter if the user is a club admin
       ...(scope.isClubAdmin ? { club_id: scope.clubId } : {}),
     },
@@ -175,6 +185,138 @@ export async function updateSessionAttendance(sessionId: number, playerId: numbe
       player_id: playerId,
       attendance_status: status as any,
     },
+  });
+
+  revalidatePath(`/admin/sessions/[id]`, "page");
+  return { success: true };
+}
+
+export async function updatePlayerTryoutNumber(seasonAgeGroupId: number, playerId: number, clubId: number | null, tryoutNumber: string) {
+  const session = await getServerAuthSession();
+  getScopeFilters(session); // verify auth
+
+  // Query first to find existing record
+  const existing = await db.season_players.findFirst({
+    where: {
+      player_id: playerId,
+      season_age_group_id: seasonAgeGroupId,
+      club_id: clubId,
+    },
+  });
+
+  if (existing) {
+    await db.season_players.update({
+      where: { id: existing.id },
+      data: {
+        tryout_number: tryoutNumber || null,
+      },
+    });
+  } else {
+    await db.season_players.create({
+      data: {
+        player_id: playerId,
+        season_age_group_id: seasonAgeGroupId,
+        club_id: clubId,
+        tryout_number: tryoutNumber || null,
+      },
+    });
+  }
+
+  revalidatePath(`/admin/sessions/[id]`, "page");
+  return { success: true };
+}
+
+export async function updateSessionRosterBatch(
+  sessionId: number,
+  eventId: number,
+  updates: {
+    playerId: number;
+    availabilityStatus?: string;
+    attendanceStatus?: string;
+    tryoutUpdates?: { seasonAgeGroupId: number; clubId: number | null; tryoutNumber: string }[];
+  }[]
+) {
+  const session = await getServerAuthSession();
+  getScopeFilters(session); // verify auth
+
+  await db.$transaction(async (tx) => {
+    for (const update of updates) {
+      const pid = update.playerId;
+
+      // 1. Update Availability
+      if (update.availabilityStatus) {
+        await tx.event_players.upsert({
+          where: {
+            event_id_player_id: {
+              event_id: eventId,
+              player_id: pid,
+            },
+          },
+          update: {
+            availability_status: update.availabilityStatus as any,
+          },
+          create: {
+            event_id: eventId,
+            player_id: pid,
+            availability_status: update.availabilityStatus as any,
+          },
+        });
+      }
+
+      // 2. Update Attendance
+      if (update.attendanceStatus) {
+        await tx.session_players.upsert({
+          where: {
+            session_id_player_id: {
+              session_id: sessionId,
+              player_id: pid,
+            },
+          },
+          update: {
+            attendance_status: update.attendanceStatus as any,
+          },
+          create: {
+            session_id: sessionId,
+            player_id: pid,
+            attendance_status: update.attendanceStatus as any,
+          },
+        });
+      }
+
+      // 3. Update Tryout Numbers
+      if (update.tryoutUpdates) {
+        for (const tu of update.tryoutUpdates) {
+          const existing = await tx.season_players.findFirst({
+            where: {
+              player_id: pid,
+              season_age_group_id: tu.seasonAgeGroupId,
+              club_id: tu.clubId,
+            },
+          });
+
+          if (existing) {
+            await tx.season_players.update({
+              where: { id: existing.id },
+              data: {
+                tryout_number: tu.tryoutNumber || null,
+              },
+            });
+          } else {
+            await tx.season_players.create({
+              data: {
+                player_id: pid,
+                season_age_group_id: tu.seasonAgeGroupId,
+                club_id: tu.clubId,
+                tryout_number: tu.tryoutNumber || null,
+              },
+            });
+          }
+        }
+      }
+    }
+  }, {
+    maxWait: 10000,
+    timeout: 30000,
   });
 
   revalidatePath(`/admin/sessions/[id]`, "page");

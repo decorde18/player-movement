@@ -36,7 +36,7 @@ export default function PlayersAdminPage() {
     );
   }
 
-  const { players, clubs, seasonAgeGroups, userScope } = data;
+  const { players, clubs, seasonAgeGroups, seasons, events, activeSeasonId, userScope } = data;
 
   const handleSave = async (form: any) => {
     const res = await createPlayer({
@@ -44,7 +44,7 @@ export default function PlayersAdminPage() {
       first_name: form.first_name,
       last_name: form.last_name,
       date_of_birth: form.date_of_birth,
-      gender: form.gender || "Boy",
+      gender: form.gender || "Male",
       club_id: Number(form.club_id),
       season_age_group_id: form.season_age_group_id ? Number(form.season_age_group_id) : undefined,
       tryout_number: form.tryout_number || undefined,
@@ -144,16 +144,16 @@ export default function PlayersAdminPage() {
       label: "Gender",
       type: "select",
       options: [
-        { value: "Boy", label: "Boy" },
-        { value: "Girl", label: "Girl" },
+        { value: "Male", label: "Male" },
+        { value: "Female", label: "Female" },
         { value: "Coed", label: "Coed" },
       ],
       render: (p: any) => (
         <span
           className={`text-[0.7rem] font-bold px-2 py-0.5 rounded-full ${
-            p.gender === "Boy"
+            p.gender === "Male" || p.gender === "Boy"
               ? "bg-primary/10 text-primary border border-primary/20"
-              : p.gender === "Girl"
+              : p.gender === "Female" || p.gender === "Girl"
               ? "bg-purple/10 text-purple border border-purple/20"
               : "bg-muted/10 text-muted"
           }`}
@@ -198,6 +198,9 @@ export default function PlayersAdminPage() {
       csvImportConfig={{
         clubs,
         seasonAgeGroups,
+        seasons,
+        events,
+        activeSeasonId: activeSeasonId || undefined,
         defaultClubId: userScope.clubId || undefined,
         onImportSuccess: loadData,
       }}

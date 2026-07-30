@@ -1,5 +1,6 @@
 import { requireServerSession } from "@/lib/authHelpers";
 import SignOutButton from "@/components/SignOutButton";
+import ToBeCreated from "@/components/ui/ToBeCreated";
 
 export default async function DashboardPage() {
   const session = await requireServerSession();
@@ -17,6 +18,7 @@ export default async function DashboardPage() {
                 : ""}
               .
             </p>
+            <ToBeCreated/>
           </div>
           <div>
             <SignOutButton />

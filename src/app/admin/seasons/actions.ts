@@ -106,13 +106,15 @@ export async function saveSeason(input: SeasonMutationInput) {
           },
         });
 
-        // Link to active club if scoped to a club
-        if (scope.isClubAdmin && scope.clubId) {
-          await tx.club_seasons.create({
-            data: {
-              club_id: scope.clubId,
+        // Link ALL clubs to this new season via club_seasons
+        const allClubs = await tx.clubs.findMany({ select: { id: true } });
+        if (allClubs.length > 0) {
+          await tx.club_seasons.createMany({
+            data: allClubs.map((club) => ({
+              club_id: club.id,
               season_id: season.id,
-            },
+            })),
+            skipDuplicates: true,
           });
         }
 

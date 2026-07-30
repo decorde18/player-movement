@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, use } from "react";
-import { getSessionRoster, updateEventAvailability, updateSessionAttendance } from "./actions";
-import { Users, AlertCircle, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
+import React, { useEffect, useState, use, useTransition } from "react";
+import { getSessionRoster, updateSessionRosterBatch } from "./actions";
+import { Users, AlertCircle, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock, Save, Trash } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
@@ -18,11 +18,17 @@ export default function SessionRosterPage(props: PageProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showUnavailable, setShowUnavailable] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  // Local state to keep track of modifications before batch saving
+  // Format: Record<playerId, { availabilityStatus?, attendanceStatus?, tryoutUpdates: { seasonAgeGroupId, clubId, tryoutNumber }[] }>
+  const [pendingChanges, setPendingChanges] = useState<Record<number, any>>({});
 
   const loadData = async () => {
     try {
       const res = await getSessionRoster(sessionId);
       setData(res);
+      setPendingChanges({});
     } catch (e: any) {
       toast.error(e.message || "Failed to load roster");
     } finally {
@@ -34,45 +40,77 @@ export default function SessionRosterPage(props: PageProps) {
     loadData();
   }, [sessionId]);
 
-  const handleAvailabilityChange = async (playerId: number, currentStatus: string) => {
-    if (!data) return;
-    const newStatus = currentStatus === "available" ? "unavailable" : "available";
-    
-    // Optimistic Update
-    setData((prev: any) => ({
-      ...prev,
-      roster: prev.roster.map((p: any) => 
-        p.player.id === playerId ? { ...p, availability_status: newStatus } : p
-      )
-    }));
+  const handleAvailabilityChange = (playerId: number, currentStatus: string) => {
+    const defaultStatus = currentStatus === "available" ? "unavailable" : "available";
+    const nextStatus = pendingChanges[playerId]?.availabilityStatus 
+      ? (pendingChanges[playerId].availabilityStatus === "available" ? "unavailable" : "available")
+      : defaultStatus;
 
-    try {
-      await updateEventAvailability(data.event.id, playerId, newStatus);
-      toast.success("Event availability updated.");
-    } catch (e) {
-      toast.error("Failed to update availability.");
-      loadData(); // Revert on failure
-    }
+    setPendingChanges((prev) => ({
+      ...prev,
+      [playerId]: {
+        ...prev[playerId],
+        availabilityStatus: nextStatus,
+      },
+    }));
   };
 
-  const handleAttendanceChange = async (playerId: number, newStatus: string) => {
-    if (!data) return;
-    
-    // Optimistic Update
-    setData((prev: any) => ({
+  const handleAttendanceChange = (playerId: number, newStatus: string) => {
+    setPendingChanges((prev) => ({
       ...prev,
-      roster: prev.roster.map((p: any) => 
-        p.player.id === playerId ? { ...p, attendance_status: newStatus } : p
-      )
+      [playerId]: {
+        ...prev[playerId],
+        attendanceStatus: newStatus,
+      },
     }));
+  };
 
-    try {
-      await updateSessionAttendance(sessionId, playerId, newStatus);
-      toast.success("Attendance updated.");
-    } catch (e) {
-      toast.error("Failed to update attendance.");
-      loadData(); // Revert on failure
-    }
+  const handleTryoutNumberChange = (playerId: number, seasonAgeGroupId: number, clubId: number | null, value: string) => {
+    setPendingChanges((prev) => {
+      const currentUpdates = prev[playerId]?.tryoutUpdates || [];
+      const filtered = currentUpdates.filter((tu: any) => tu.seasonAgeGroupId !== seasonAgeGroupId);
+      
+      return {
+        ...prev,
+        [playerId]: {
+          ...prev[playerId],
+          tryoutUpdates: [
+            ...filtered,
+            { seasonAgeGroupId, clubId, tryoutNumber: value },
+          ],
+        },
+      };
+    });
+  };
+
+  const handleDiscardChanges = () => {
+    setPendingChanges({});
+    toast.info("Pending changes discarded.");
+  };
+
+  const handleSaveChanges = () => {
+    if (Object.keys(pendingChanges).length === 0) return;
+
+    startTransition(async () => {
+      const updates = Object.entries(pendingChanges).map(([playerIdStr, change]: [string, any]) => ({
+        playerId: parseInt(playerIdStr, 10),
+        availabilityStatus: change.availabilityStatus,
+        attendanceStatus: change.attendanceStatus,
+        tryoutUpdates: change.tryoutUpdates,
+      }));
+
+      try {
+        const res = await updateSessionRosterBatch(sessionId, data.event.id, updates);
+        if (res.success) {
+          toast.success("Successfully saved all changes in one batch!");
+          loadData();
+        } else {
+          toast.error("Failed to save batch changes.");
+        }
+      } catch (err: any) {
+        toast.error("Error saving changes: " + err.message);
+      }
+    });
   };
 
   if (loading) {
@@ -97,16 +135,51 @@ export default function SessionRosterPage(props: PageProps) {
   }
 
   const { session, event, roster } = data;
-  const filteredRoster = showUnavailable 
-    ? roster 
-    : roster.filter((r: any) => r.availability_status === "available");
 
-  const totalPlayers = roster.length;
-  const availablePlayers = roster.filter((r: any) => r.availability_status === "available").length;
-  const presentPlayers = roster.filter((r: any) => r.availability_status === "available" && r.attendance_status === "present").length;
+  // Resolve display values considering pendingChanges locally
+  const resolvedRoster = roster.map((item: any) => {
+    const pid = item.player.id;
+    const pending = pendingChanges[pid];
+    
+    let availability_status = item.availability_status;
+    let attendance_status = item.attendance_status;
+    let seasonAssignments = item.seasonAssignments;
+
+    if (pending) {
+      if (pending.availabilityStatus !== undefined) {
+        availability_status = pending.availabilityStatus;
+      }
+      if (pending.attendanceStatus !== undefined) {
+        attendance_status = pending.attendanceStatus;
+      }
+      if (pending.tryoutUpdates !== undefined) {
+        seasonAssignments = item.seasonAssignments.map((sa: any) => {
+          const match = pending.tryoutUpdates.find((tu: any) => tu.seasonAgeGroupId === sa.season_age_group_id);
+          return match ? { ...sa, tryout_number: match.tryoutNumber } : sa;
+        });
+      }
+    }
+
+    return {
+      ...item,
+      availability_status,
+      attendance_status,
+      seasonAssignments,
+    };
+  });
+
+  const filteredRoster = showUnavailable 
+    ? resolvedRoster 
+    : resolvedRoster.filter((r: any) => r.availability_status === "available");
+
+  const totalPlayers = resolvedRoster.length;
+  const availablePlayers = resolvedRoster.filter((r: any) => r.availability_status === "available").length;
+  const presentPlayers = resolvedRoster.filter((r: any) => r.availability_status === "available" && r.attendance_status === "present").length;
+
+  const hasPendingChanges = Object.keys(pendingChanges).length > 0;
 
   return (
-    <div className='min-h-screen bg-background text-text p-4 md:p-8 animate-fadeIn'>
+    <div className='min-h-screen bg-background text-text p-4 md:p-8 animate-fadeIn pb-24'>
       <div className='max-w-7xl mx-auto space-y-6'>
         
         {/* Header */}
@@ -172,6 +245,7 @@ export default function SessionRosterPage(props: PageProps) {
               <thead className='bg-background text-text-label font-bold border-b border-border text-xs'>
                 <tr>
                   <th className='p-4'>Player Name</th>
+                  <th className='p-4'>Tryout #</th>
                   <th className='p-4'>Club / Divisions</th>
                   <th className='p-4 text-center'>Event Availability</th>
                   <th className='p-4 text-center'>Session Attendance</th>
@@ -180,7 +254,7 @@ export default function SessionRosterPage(props: PageProps) {
               <tbody className='divide-y divide-border bg-surface'>
                 {filteredRoster.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className='p-8 text-center text-muted font-bold'>
+                    <td colSpan={5} className='p-8 text-center text-muted font-bold'>
                       No players found for this event's age groups.
                     </td>
                   </tr>
@@ -201,6 +275,24 @@ export default function SessionRosterPage(props: PageProps) {
                               <span className='text-[0.65rem] text-muted'>ID: {item.player.id}</span>
                             </div>
                           </div>
+                        </td>
+                        {/* Tryout Number Editable Input */}
+                        <td className='p-4 align-middle'>
+                          {item.seasonAssignments.map((sp: any) => (
+                            <div key={sp.id} className='flex items-center gap-1.5 mb-1 last:mb-0'>
+                              <span className='text-[0.6rem] font-bold text-muted w-10 truncate'>
+                                {sp.season_age_groups?.age_groups?.name}:
+                              </span>
+                              <input
+                                type='text'
+                                disabled={!isAvailable}
+                                value={sp.tryout_number || ""}
+                                placeholder='N/A'
+                                onChange={(e) => handleTryoutNumberChange(item.player.id, sp.season_age_group_id, sp.club_id, e.target.value)}
+                                className='w-16 px-1.5 py-0.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary disabled:opacity-50'
+                              />
+                            </div>
+                          ))}
                         </td>
                         <td className='p-4'>
                           <div className='font-bold text-xs text-text mb-1'>
@@ -259,8 +351,47 @@ export default function SessionRosterPage(props: PageProps) {
             </table>
           </div>
         </div>
-        
       </div>
+
+      {/* Floating Batch Actions Bar */}
+      {hasPendingChanges && (
+        <div className='fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/90 border border-border rounded-full shadow-2xl px-6 py-4 flex items-center gap-6 backdrop-blur-md z-[100] animate-fadeIn'>
+          <div className='flex items-center gap-2'>
+            <AlertCircle size={16} className='text-primary animate-pulse' />
+            <span className='text-xs font-bold text-text-label'>
+              {Object.keys(pendingChanges).length} players modified locally
+            </span>
+          </div>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={handleDiscardChanges}
+              disabled={isPending}
+              className='flex items-center gap-1 text-xs font-bold'
+            >
+              <Trash size={14} /> Discard
+            </Button>
+            <Button
+              variant='primary'
+              size='sm'
+              onClick={handleSaveChanges}
+              disabled={isPending}
+              className='flex items-center gap-1 text-xs font-bold'
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className='animate-spin' size={14} /> Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={14} /> Save Batch Changes
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

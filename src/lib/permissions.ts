@@ -47,11 +47,10 @@ export function getScopeFilters(
         clubId: clubIdOverride,
         filters: {
           player: () => ({
-            season_players: {
-              some: {
-                club_id: clubIdOverride,
-              },
-            },
+            OR: [
+              { season_players: { some: { club_id: clubIdOverride } } },
+              { season_players: { none: {} } },
+            ],
           }),
           club: () => ({ id: clubIdOverride }),
           season: () => ({
@@ -120,11 +119,10 @@ export function getScopeFilters(
       clubId,
       filters: {
         player: () => ({
-          season_players: {
-            some: {
-              club_id: clubId,
-            },
-          },
+          OR: [
+            { season_players: { some: { club_id: clubId } } },
+            { season_players: { none: {} } },
+          ],
         }),
         club: () => ({ id: clubId }),
         season: () => ({

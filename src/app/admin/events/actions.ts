@@ -16,6 +16,7 @@ export interface EventInput {
   season_id: number;
   name: string;
   event_type: "tryout" | "ranking";
+  season_age_group_ids: number[];
 }
 
 export interface SessionInput {
@@ -39,6 +40,15 @@ export async function getEventsDashboardData() {
       events: {
         include: {
           sessions: true,
+          event_divisions: {
+            include: {
+              season_age_groups: {
+                include: {
+                  age_groups: true,
+                },
+              },
+            },
+          },
         },
         orderBy: { created_at: "desc" },
       },
@@ -123,12 +133,57 @@ export async function createEvent(input: EventInput) {
       return { success: false, error: "Access Denied: Season not found or out of scope." };
     }
 
-    const event = await db.events.create({
-      data: {
-        season_id: input.season_id,
-        name: input.name,
-        event_type: input.event_type,
-      },
+    const divisionIds = input.season_age_group_ids || [];
+
+    const event = await db.$transaction(async (tx) => {
+      // 1. Create the event
+      const newEvent = await tx.events.create({
+        data: {
+          season_id: input.season_id,
+          name: input.name,
+          event_type: input.event_type,
+        },
+      });
+
+      // 2. Insert event_divisions for each selected age group
+      if (divisionIds.length > 0) {
+        await tx.event_divisions.createMany({
+          data: divisionIds.map((sagId) => ({
+            event_id: newEvent.id,
+            season_age_group_id: sagId,
+          })),
+          skipDuplicates: true,
+        });
+
+        // 3. Fetch all season_players in these divisions
+        const eligiblePlayers = await tx.season_players.findMany({
+          where: {
+            season_age_group_id: { in: divisionIds },
+            ...(scope.isClubAdmin ? { club_id: scope.clubId } : {}),
+          },
+          select: { player_id: true },
+        });
+
+        // Deduplicate player_ids (a player may be in multiple divisions)
+        const uniquePlayerIds = [...new Set(eligiblePlayers.map((sp) => sp.player_id))];
+
+        // 4. Bulk-insert event_players with unavailable status
+        if (uniquePlayerIds.length > 0) {
+          await tx.event_players.createMany({
+            data: uniquePlayerIds.map((pid) => ({
+              event_id: newEvent.id,
+              player_id: pid,
+              availability_status: "unavailable" as const,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      return newEvent;
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     revalidatePath("/admin/events");

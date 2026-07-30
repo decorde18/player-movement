@@ -34,13 +34,34 @@ Phase 3 — Events & Sessions
   • [x] Session attendance screen: mark present/absent/excused (session_players.attendance_status) 
     ○ [x] Editable by coach or coordinator
     ○ [x] Players marked unavailable for the event start hidden here too, same reveal toggle
+
+    
+<!-- Club Seasons are not auto creating when new season is created - FIX THIS - when new season is created, club seasons should be created for all clubs  
+When a club is created, they should get a club season for the active season -->
+• [x] Still need a better indicator if a select field in mapping is blank -pink? with maybe one where it is not obvious and has been guesses as orange?
+• [x] Admin creates events. They indicate which age groups are in the event.
+• [x] Admin will need a filter for age group
+• [x] Lead coach or admin can create session
+• [x] On import, we need to be able to import to an event. So it should be register for season or register for event.
+• [x]   When csv is uploaded, need to compare for already registered for the year.
+• [x]   If for event, then need to be able to select event and any players on list should be registered for event and any sessions that are part of the event.
+• [x] Tryout numbers are varchar in the db and probably need to stay that way. I need a way to sort them numerically, when they are numerical.
+• [x] on bulk crud, can we make sure it is done the best way possible, ie not a bunch of requests to the server
+
 Phase 4 — Fields/Groups & Drag-and-Drop Movement
-  • [ ] Session fields/groups CRUD (session_fields) scoped to a session
-  • [ ] "Carry over from previous session" logic — default a new session's groupings to the prior session's
-  • [ ] Drag-and-drop board: players as cards, fields/groups as columns 
-    ○ [ ] Desktop: native drag-and-drop (e.g. dnd-kit)
-    ○ [ ] Mobile: tap-to-select, then tap-target column to assign (fallback path, same underlying action)
-  • [ ] Age group coordinator override: move any player between fields at any time
+  • [x] Session fields/groups CRUD (session_fields) scoped to a session
+  • [x] "Carry over from previous session" logic — default a new session's groupings to the prior session's
+  • [x] Drag-and-drop board: players as cards, fields/groups as columns 
+    ○ [x] Desktop: native drag-and-drop (e.g. dnd-kit)
+    ○ [x] Mobile: tap-to-select, then tap-target column to assign (fallback path, same underlying action)
+  • [x] Age group coordinator override: move any player between fields at any time
+  • [x] Ability to sort unassigned players by tryout number name (first and last) or rating, in the unassigned column. Same ability in the fields but also by rank
+  • [x] Warning to save when trying to leave player board page
+  • [x] GKs need a different color
+
+
+The active division filter should show only the players registered for that division (age group). The event and sessions should be for only those players as well
+
 Phase 5 — Ratings
   • [ ] Rating entry UI per coach, per field, per session (session_player_ratings) 
     ○ [ ] Only the entering coach's own numbers are visible/editable by them
@@ -48,6 +69,8 @@ Phase 5 — Ratings
   • [ ] Aggregate session-level rating computed from session_player_ratings → stored/displayed on session_players
   • [ ] Carry-forward logic: after an event closes, update season_players.rating from the event's final ratings
   • [ ] Rating history view on player detail page (which event, which session, which coach, what score)
+  • [x] Player cards should have a note icon that brings up a pop up of that player that shows all sessions in the event and the player's rating for that session with attendance.
+  
 Phase 6 — Rankings
   • [ ] Ranking computation: group players by rating tier, auto-rank within tier → event_player_rankings
   • [ ] Coordinator "finalize" action: locks ranking, sets is_finalized / finalized_by / finalized_at
