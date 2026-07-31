@@ -2,7 +2,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
@@ -131,6 +130,7 @@ model season_age_groups {
   age_groups      age_groups        @relation(fields: [age_group_id], references: [id], onUpdate: Restrict, map: "season_age_groups_ibfk_2")
   season_players  season_players[]
   season_teams    season_teams[]
+  sessions        sessions[]
 
   @@unique([season_id, age_group_id, gender], map: "season_id")
   @@index([age_group_id], map: "age_group_id")
@@ -186,18 +186,20 @@ model session_fields {
 }
 
 model session_players {
-  id                Int                                @id @default(autoincrement())
-  session_id        Int
-  player_id         Int
-  season_team_id    Int?
-  attendance_status session_players_attendance_status? @default(present)
-  created_at        DateTime?                          @default(now()) @db.Timestamp(0)
-  field_id          Int?
-  rank              Int?                               @default(0)
-  session_fields    session_fields?                    @relation(fields: [field_id], references: [id], onUpdate: Restrict, map: "fk_session_field")
-  sessions          sessions                           @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "session_players_ibfk_1")
-  players           players                            @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "session_players_ibfk_2")
-  season_teams      season_teams?                      @relation(fields: [season_team_id], references: [id], onUpdate: Restrict, map: "fk_session_players_season_team")
+  id                     Int                                @id @default(autoincrement())
+  session_id             Int
+  player_id              Int
+  season_team_id         Int?
+  attendance_status      session_players_attendance_status? @default(present)
+  created_at             DateTime?                          @default(now()) @db.Timestamp(0)
+  field_id               Int?
+  rank                   Int?                               @default(0)
+  rating                 Float?                             @default(0)
+  session_fields         session_fields?                    @relation(fields: [field_id], references: [id], onUpdate: Restrict, map: "fk_session_field")
+  sessions               sessions                           @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "session_players_ibfk_1")
+  players                players                            @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "session_players_ibfk_2")
+  season_teams           season_teams?                      @relation(fields: [season_team_id], references: [id], onUpdate: Restrict, map: "fk_session_players_season_team")
+  session_player_ratings session_player_ratings[]
 
   @@unique([session_id, player_id], map: "session_id")
   @@index([field_id], map: "fk_session_field")
@@ -205,18 +207,35 @@ model session_players {
   @@index([season_team_id], map: "season_team_id")
 }
 
+model session_player_ratings {
+  id                Int             @id @default(autoincrement())
+  session_player_id Int
+  coach_id          String          @db.VarChar(255)
+  coach_name        String          @db.VarChar(255)
+  rating            Float
+  created_at        DateTime?       @default(now()) @db.Timestamp(0)
+  updated_at        DateTime?       @default(now()) @db.Timestamp(0)
+  session_players   session_players @relation(fields: [session_player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "session_player_ratings_ibfk_1")
+
+  @@unique([session_player_id, coach_id], map: "session_player_coach")
+  @@index([session_player_id], map: "session_player_id")
+}
+
 model sessions {
-  id              Int               @id @default(autoincrement())
-  event_id        Int
-  name            String            @db.VarChar(255)
-  session_date    DateTime          @db.Date
-  created_at      DateTime?         @default(now()) @db.Timestamp(0)
-  coach_notes     coach_notes[]
-  session_fields  session_fields[]
-  session_players session_players[]
-  events          events            @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "sessions_ibfk_1")
+  id                  Int                @id @default(autoincrement())
+  event_id            Int
+  season_age_group_id Int?
+  name                String             @db.VarChar(255)
+  session_date        DateTime           @db.Date
+  created_at          DateTime?          @default(now()) @db.Timestamp(0)
+  coach_notes         coach_notes[]
+  session_fields      session_fields[]
+  session_players     session_players[]
+  events              events             @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "sessions_ibfk_1")
+  season_age_groups   season_age_groups? @relation(fields: [season_age_group_id], references: [id], onDelete: SetNull, onUpdate: Restrict, map: "sessions_ibfk_2")
 
   @@index([event_id], map: "event_id")
+  @@index([season_age_group_id], map: "season_age_group_id")
 }
 
 model teams {

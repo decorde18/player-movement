@@ -19,10 +19,13 @@ export interface EventInput {
   season_age_group_ids: number[];
 }
 
+import { cookies } from "next/headers";
+
 export interface SessionInput {
   event_id: number;
   name: string;
   session_date: string;
+  season_age_group_ids?: number[];
 }
 
 /**
@@ -34,12 +37,37 @@ export async function getEventsDashboardData() {
   const scope = getScopeFilters(session, activeClubId);
   const seasonFilter = scope.filters.season();
 
+  const cookieStore = await cookies();
+  const activeAgeGroupIdStr = cookieStore.get("activeAgeGroupId")?.value;
+  const activeAgeGroupId = activeAgeGroupIdStr ? parseInt(activeAgeGroupIdStr, 10) : null;
+
+  // Filter events by the active division if selected
+  const eventWhereFilter = activeAgeGroupId
+    ? {
+        event_divisions: {
+          some: {
+            season_age_group_id: activeAgeGroupId,
+          },
+        },
+      }
+    : undefined;
+
   const seasons = await db.seasons.findMany({
     where: seasonFilter,
     include: {
       events: {
+        where: eventWhereFilter,
         include: {
-          sessions: true,
+          sessions: {
+            include: {
+              season_age_groups: {
+                include: {
+                  age_groups: true,
+                },
+              },
+            },
+            orderBy: { session_date: "asc" },
+          },
           event_divisions: {
             include: {
               season_age_groups: {
@@ -215,17 +243,42 @@ export async function createSession(input: SessionInput) {
     }
 
     const date = input.session_date ? new Date(input.session_date) : new Date();
+    const divisionIds = input.season_age_group_ids || [];
 
-    const newSession = await db.sessions.create({
-      data: {
-        event_id: input.event_id,
-        name: input.name,
-        session_date: date,
-      },
-    });
+    if (divisionIds.length > 0) {
+      const selectedDivisions = await db.season_age_groups.findMany({
+        where: { id: { in: divisionIds } },
+        include: { age_groups: true },
+      });
 
-    revalidatePath("/admin/events");
-    return { success: true, session: newSession };
+      const createdSessions = [];
+      for (const div of selectedDivisions) {
+        const appendedName = `${input.name} - ${div.age_groups.name} (${div.gender})`;
+        const newSession = await db.sessions.create({
+          data: {
+            event_id: input.event_id,
+            season_age_group_id: div.id,
+            name: appendedName,
+            session_date: date,
+          },
+        });
+        createdSessions.push(newSession);
+      }
+
+      revalidatePath("/admin/events");
+      return { success: true, sessions: createdSessions };
+    } else {
+      const newSession = await db.sessions.create({
+        data: {
+          event_id: input.event_id,
+          name: input.name,
+          session_date: date,
+        },
+      });
+
+      revalidatePath("/admin/events");
+      return { success: true, session: newSession };
+    }
   } catch (error: any) {
     console.error("createSession Error:", error);
     return { success: false, error: error.message || "Failed to create session." };

@@ -11,6 +11,7 @@ import {
 } from "./actions";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import Modal from "@/components/ui/Modal";
 import {
   CalendarRange,
   Plus,
@@ -58,6 +59,10 @@ export default function EventsAdminPage() {
 
   const [sessionName, setSessionName] = useState("");
   const [sessionDate, setSessionDate] = useState("");
+  const [selectedSessionDivisionIds, setSelectedSessionDivisionIds] = useState<number[]>([]);
+
+  // Modal deletion state
+  const [activeDeleteTarget, setActiveDeleteTarget] = useState<{ type: "event" | "session"; id: number; name: string } | null>(null);
 
   const loadData = async () => {
     try {
@@ -167,12 +172,15 @@ export default function EventsAdminPage() {
         event_id: selectedEventId,
         name: sessionName,
         session_date: sessionDate,
+        season_age_group_ids: selectedSessionDivisionIds,
       });
 
       if (res.success) {
-        toast.success(`Session "${sessionName}" created.`);
+        const count = selectedSessionDivisionIds.length;
+        toast.success(count > 0 ? `Created ${count} division-specific sessions.` : `Session "${sessionName}" created.`);
         setSessionName("");
         setSessionDate("");
+        setSelectedSessionDivisionIds([]);
         setShowSessionForm(false);
         loadData();
       } else {
@@ -182,29 +190,39 @@ export default function EventsAdminPage() {
   };
 
   // Deletion Subhandlers
-  const handleDeleteEvent = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete Event "${name}" and all associated sessions?`)) return;
-
-    const res = await deleteEvent(id);
-    if (res.success) {
-      toast.success(`Deleted Event "${name}"`);
-      setSelectedEventId(null);
-      loadData();
-    } else {
-      toast.error(res.error || "Failed to delete event.");
-    }
+  const handleDeleteEvent = (id: number, name: string) => {
+    setActiveDeleteTarget({ type: "event", id, name });
   };
 
-  const handleDeleteSession = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete Session "${name}"?`)) return;
+  const handleDeleteSession = (id: number, name: string) => {
+    setActiveDeleteTarget({ type: "session", id, name });
+  };
 
-    const res = await deleteSession(id);
-    if (res.success) {
-      toast.success(`Deleted Session "${name}"`);
-      loadData();
-    } else {
-      toast.error(res.error || "Failed to delete session.");
-    }
+  const handleConfirmDelete = async () => {
+    if (!activeDeleteTarget) return;
+
+    const { type, id, name } = activeDeleteTarget;
+    startTransition(async () => {
+      if (type === "event") {
+        const res = await deleteEvent(id);
+        if (res.success) {
+          toast.success(`Deleted Event "${name}"`);
+          setSelectedEventId(null);
+          loadData();
+        } else {
+          toast.error(res.error || "Failed to delete event.");
+        }
+      } else {
+        const res = await deleteSession(id);
+        if (res.success) {
+          toast.success(`Deleted Session "${name}"`);
+          loadData();
+        } else {
+          toast.error(res.error || "Failed to delete session.");
+        }
+      }
+      setActiveDeleteTarget(null);
+    });
   };
 
   // Toggle division selection
@@ -405,10 +423,15 @@ export default function EventsAdminPage() {
                 {selectedSeasonId && (
                   <button
                     onClick={() => {
-                      setShowEventForm(!showEventForm);
+                      const nextShow = !showEventForm;
+                      setShowEventForm(nextShow);
                       setShowSeasonForm(false);
                       setShowSessionForm(false);
-                      setSelectedDivisionIds([]);
+                      if (nextShow) {
+                        setSelectedDivisionIds(seasonDivisions.map((d: any) => d.id));
+                      } else {
+                        setSelectedDivisionIds([]);
+                      }
                     }}
                     className='p-1.5 rounded-lg border border-border bg-surface text-text hover:bg-background transition-all cursor-pointer'
                     title='Create Event'
@@ -618,9 +641,17 @@ export default function EventsAdminPage() {
               {selectedEventId && (
                 <button
                   onClick={() => {
-                    setShowSessionForm(!showSessionForm);
+                    const nextShow = !showSessionForm;
+                    setShowSessionForm(nextShow);
                     setShowSeasonForm(false);
                     setShowEventForm(false);
+                    if (nextShow && activeEvent?.event_divisions) {
+                      setSelectedSessionDivisionIds(
+                        activeEvent.event_divisions.map((ed: any) => ed.season_age_groups.id)
+                      );
+                    } else {
+                      setSelectedSessionDivisionIds([]);
+                    }
                   }}
                   className='p-1.5 rounded-lg border border-border bg-surface text-text hover:bg-background transition-all cursor-pointer'
                   title='Create Session'
@@ -660,6 +691,48 @@ export default function EventsAdminPage() {
                         required
                         size='sm'
                       />
+
+                      {/* Division selection for session */}
+                      {activeEvent?.event_divisions && activeEvent.event_divisions.length > 0 && (
+                        <div>
+                          <label className='block text-[0.65rem] font-bold text-text-label mb-1.5'>
+                            Target Age Group / Division (Optional)
+                          </label>
+                          <p className='text-[0.55rem] text-muted mb-2'>
+                            Select specific divisions to create separate sessions simultaneously, or leave all blank to include all divisions.
+                          </p>
+                          <div className='max-h-36 overflow-y-auto border border-border rounded-lg p-2 bg-background/50 space-y-1.5 custom-scrollbar'>
+                            {activeEvent.event_divisions.map((ed: any) => {
+                              const div = ed.season_age_groups;
+                              const isSelected = selectedSessionDivisionIds.includes(div.id);
+                              return (
+                                <button
+                                  key={div.id}
+                                  type='button'
+                                  onClick={() => {
+                                    setSelectedSessionDivisionIds(prev =>
+                                      prev.includes(div.id) ? prev.filter(id => id !== div.id) : [...prev, div.id]
+                                    );
+                                  }}
+                                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[0.65rem] font-semibold transition-all cursor-pointer ${
+                                    isSelected
+                                      ? "bg-primary/10 text-primary border border-primary/30"
+                                      : "hover:bg-background text-text border border-transparent"
+                                  }`}
+                                >
+                                  {isSelected ? (
+                                    <CheckSquare size={14} className='text-primary flex-shrink-0' />
+                                  ) : (
+                                    <Square size={14} className='text-muted/40 flex-shrink-0' />
+                                  )}
+                                  <span>{div.age_groups?.name}</span>
+                                  <span className='text-[0.55rem] opacity-70'>({div.gender})</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       <div className='flex gap-2 pt-1.5 justify-end'>
                         <Button
                           variant='outline'
@@ -693,10 +766,17 @@ export default function EventsAdminPage() {
                           </div>
                           <div>
                             <span className='font-bold text-sm text-text block'>{sess.name}</span>
-                            <span className='text-[0.65rem] text-muted flex items-center gap-1 mt-0.5'>
-                              <CalendarDays size={12} className='text-muted/60' />
-                              {new Date(sess.session_date).toLocaleDateString()}
-                            </span>
+                            <div className='flex flex-wrap items-center gap-1.5 mt-0.5'>
+                              <span className='text-[0.65rem] text-muted flex items-center gap-1'>
+                                <CalendarDays size={12} className='text-muted/60' />
+                                {new Date(sess.session_date).toLocaleDateString()}
+                              </span>
+                              {sess.season_age_groups && (
+                                <span className='px-1.5 py-0.5 text-[0.55rem] font-bold rounded-full border bg-primary/10 text-primary border-primary/20'>
+                                  {sess.season_age_groups.age_groups?.name} ({sess.season_age_groups.gender})
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -726,6 +806,32 @@ export default function EventsAdminPage() {
           </div>
         </div>
       </div>
+      {/* Modal Dialog for Event/Session Deletion Confirmation */}
+      <Modal
+        isOpen={!!activeDeleteTarget}
+        onClose={() => setActiveDeleteTarget(null)}
+        title={activeDeleteTarget?.type === "event" ? "Confirm Delete Event" : "Confirm Delete Session"}
+        size='sm'
+        footer={
+          <>
+            <Button variant='outline' onClick={() => setActiveDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant='danger' onClick={handleConfirmDelete} disabled={isPending}>
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p className='text-sm text-text font-medium leading-relaxed flex items-start gap-2.5'>
+          <AlertCircle className='text-danger shrink-0' size={20} />
+          <span>
+            Are you sure you want to delete the {activeDeleteTarget?.type} <strong className='text-primary'>&quot;{activeDeleteTarget?.name}&quot;</strong>?
+            {activeDeleteTarget?.type === "event" && " This will permanently delete all associated evaluation sessions as well."} This action cannot be undone.
+          </span>
+        </p>
+      </Modal>
+
     </div>
   );
 }

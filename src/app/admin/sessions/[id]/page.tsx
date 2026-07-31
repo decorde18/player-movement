@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, use, useTransition } from "react";
 import { getSessionRoster, updateSessionRosterBatch } from "./actions";
-import { Users, AlertCircle, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock, Save, Trash } from "lucide-react";
+import { Users, AlertCircle, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock, Save, Trash, Star } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
@@ -209,14 +209,22 @@ export default function SessionRosterPage(props: PageProps) {
             </div>
           </div>
           
-          <div className='flex gap-4 text-center md:text-right'>
-            <div className='bg-background border border-border px-4 py-2 rounded-xl'>
-              <span className='block text-[0.65rem] font-bold text-muted uppercase'>Event Roster</span>
-              <span className='text-lg font-bold text-text'>{availablePlayers} <span className='text-sm text-muted/60 font-medium'>/ {totalPlayers}</span></span>
-            </div>
-            <div className='bg-background border border-border px-4 py-2 rounded-xl'>
-              <span className='block text-[0.65rem] font-bold text-muted uppercase'>Session Attendance</span>
-              <span className='text-lg font-bold text-primary'>{presentPlayers} <span className='text-sm text-muted/60 font-medium'>present</span></span>
+          <div className='flex items-center gap-3 self-center'>
+            <Link href={`/admin/sessions/${sessionId}/ratings`}>
+              <Button variant='primary' size='sm' className='font-bold text-xs bg-accent hover:bg-accent-hover text-white flex items-center gap-1.5 h-[38px]'>
+                <Star size={14} /> Evaluation Ratings
+              </Button>
+            </Link>
+            
+            <div className='flex gap-4 text-center md:text-right'>
+              <div className='bg-background border border-border px-4 py-2 rounded-xl'>
+                <span className='block text-[0.65rem] font-bold text-muted uppercase'>Event Roster</span>
+                <span className='text-lg font-bold text-text'>{availablePlayers} <span className='text-sm text-muted/60 font-medium'>/ {totalPlayers}</span></span>
+              </div>
+              <div className='bg-background border border-border px-4 py-2 rounded-xl'>
+                <span className='block text-[0.65rem] font-bold text-muted uppercase'>Session Attendance</span>
+                <span className='text-lg font-bold text-primary'>{presentPlayers} <span className='text-sm text-muted/60 font-medium'>present</span></span>
+              </div>
             </div>
           </div>
         </div>

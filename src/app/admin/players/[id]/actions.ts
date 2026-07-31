@@ -46,6 +46,19 @@ export async function getPlayerData(playerId: number) {
             },
           },
         },
+        session_players: {
+          include: {
+            sessions: {
+              include: {
+                events: true,
+              },
+            },
+            session_player_ratings: true,
+          },
+          orderBy: {
+            created_at: "desc",
+          },
+        },
         coach_notes: {
           include: {
             users: {

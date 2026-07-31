@@ -28,7 +28,9 @@ export async function getSessionRoster(sessionId: number) {
   }
 
   const event = session.events;
-  const divisionIds = event.event_divisions.map((d) => d.season_age_group_id);
+  const divisionIds = session.season_age_group_id 
+    ? [session.season_age_group_id]
+    : event.event_divisions.map((d) => d.season_age_group_id);
 
   if (divisionIds.length === 0) {
     return {

@@ -1,9 +1,11 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Button from "../ui/Button";
-import { Upload, HelpCircle, Check, AlertCircle } from "lucide-react";
+import { Upload, HelpCircle, Check, AlertCircle, RefreshCw, HelpCircle as HelpIcon } from "lucide-react";
 import { toast } from "sonner";
 import { bulkImportPlayers } from "@/app/admin/players/actions";
+import Input from "../ui/Input";
+import { POSITION_PRESETS, STANDARD_POSITIONS } from "@/lib/utils/positionPresets";
 
 interface CSVImporterProps {
   clubs: { id: number; name: string }[];
@@ -21,6 +23,28 @@ interface CSVImporterProps {
   events?: { id: number; name: string; season_id: number }[];
 }
 
+// Obvious preset mapping rules for Gender
+function guessGender(raw: string): "male" | "female" | null {
+  const clean = raw.trim().toLowerCase();
+  if (["male", "m", "boy", "b", "boys"].includes(clean)) return "male";
+  if (["female", "f", "girl", "g", "girls"].includes(clean)) return "female";
+  return null;
+}
+
+// Build a normalized lookup cache of POSITION_PRESETS at module load time
+const normalizedPresetsCache: Record<string, string> = {};
+if (typeof window !== "undefined" || true) {
+  Object.entries(POSITION_PRESETS || {}).forEach(([key, val]) => {
+    const cleanKey = key.trim().toLowerCase().replace(/[^a-z0-9\s]/g, "");
+    normalizedPresetsCache[cleanKey] = val;
+  });
+}
+
+function guessPosition(raw: string): string | null {
+  const clean = raw.trim().toLowerCase().replace(/[^a-z0-9\s]/g, "");
+  return normalizedPresetsCache[clean] || null;
+}
+
 // Simple but robust CSV/TSV parser that handles quotes and delimiters
 function parseCSV(text: string): string[][] {
   const lines: string[][] = [];
@@ -28,7 +52,6 @@ function parseCSV(text: string): string[][] {
   let inQuotes = false;
   let currentVal = "";
 
-  // Normalize newlines
   const cleanText = text.trim().replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
   for (let i = 0; i < cleanText.length; i++) {
@@ -37,23 +60,18 @@ function parseCSV(text: string): string[][] {
 
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
-        // Escaped quote
         currentVal += '"';
         i++;
       } else {
-        // Toggle quote state
         inQuotes = !inQuotes;
       }
     } else if (char === "," && !inQuotes) {
-      // Cell boundary
       row.push(currentVal.trim());
       currentVal = "";
     } else if (char === "\t" && !inQuotes) {
-      // Support TSV (from Excel copy-paste)
       row.push(currentVal.trim());
       currentVal = "";
     } else if (char === "\n" && !inQuotes) {
-      // Row boundary
       row.push(currentVal.trim());
       lines.push(row);
       row = [];
@@ -63,7 +81,6 @@ function parseCSV(text: string): string[][] {
     }
   }
 
-  // Handle final value and row
   if (currentVal || row.length > 0) {
     row.push(currentVal.trim());
     lines.push(row);
@@ -101,7 +118,6 @@ export default function CSVImporter({
     rating: -1,
   });
 
-  // Track which mappings were auto-guessed
   const [autoGuessedFields, setAutoGuessedFields] = useState<Set<string>>(new Set());
 
   // Global settings for the import
@@ -113,6 +129,16 @@ export default function CSVImporter({
   );
   const [selectedAgeGroupId, setSelectedAgeGroupId] = useState<string>("");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
+
+  // Interactive value mapping states
+  const [wizardData, setWizardData] = useState<{
+    rawGenders: string[];
+    rawPositions: string[];
+  } | null>(null);
+
+  // Completed user mappings
+  const [genderMappings, setGenderMappings] = useState<Record<string, "male" | "female">>({});
+  const [positionMappings, setPositionMappings] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (activeSeasonId) {
@@ -191,6 +217,9 @@ export default function CSVImporter({
       setMappings(newMappings);
       setAutoGuessedFields(guessed);
       setIsParsed(true);
+      setWizardData(null);
+      setGenderMappings({});
+      setPositionMappings({});
       toast.success("CSV parsed successfully! Map your columns below.");
     } catch (e: any) {
       toast.error("Failed to parse CSV text: " + e.message);
@@ -215,7 +244,6 @@ export default function CSVImporter({
       ...prev,
       [dbField]: index,
     }));
-    // If the user manually changes a mapping, remove it from auto-guessed
     setAutoGuessedFields((prev) => {
       const next = new Set(prev);
       next.delete(dbField);
@@ -223,7 +251,8 @@ export default function CSVImporter({
     });
   };
 
-  const handleImport = async () => {
+  // Inspect unmatched values and trigger Verification Wizard if needed
+  const handleImportAttempt = () => {
     if (!selectedSeasonId) {
       toast.error("Please select a target Season for the imported players.");
       return;
@@ -239,25 +268,106 @@ export default function CSVImporter({
       return;
     }
 
-    // Validation: First Name and Last Name must be mapped
     if (mappings.first_name === -1 || mappings.last_name === -1) {
       toast.error("You must map both First Name and Last Name columns.");
       return;
     }
 
+    // Inspect parsed rows for unique raw genders and positions
+    const uniqueRawGenders = new Set<string>();
+    const uniqueRawPositions = new Set<string>();
+
+    parsedData.forEach((row) => {
+      if (mappings.gender !== -1) {
+        const val = row[mappings.gender]?.trim();
+        if (val) uniqueRawGenders.add(val);
+      }
+      if (mappings.position !== -1) {
+        const val = row[mappings.position]?.trim();
+        if (val) uniqueRawPositions.add(val);
+      }
+    });
+
+    const unmappedGendersList: string[] = [];
+    const initialGenderMappings = { ...genderMappings };
+
+    uniqueRawGenders.forEach((raw) => {
+      if (initialGenderMappings[raw]) return;
+      const guess = guessGender(raw);
+      if (guess) {
+        initialGenderMappings[raw] = guess;
+      } else {
+        unmappedGendersList.push(raw);
+      }
+    });
+
+    const unmappedPositionsList: string[] = [];
+    const initialPositionMappings = { ...positionMappings };
+
+    uniqueRawPositions.forEach((raw) => {
+      if (initialPositionMappings[raw]) return;
+      const guess = guessPosition(raw);
+      if (guess) {
+        initialPositionMappings[raw] = guess;
+      } else {
+        unmappedPositionsList.push(raw);
+      }
+    });
+
+    // Update preset mappings
+    setGenderMappings(initialGenderMappings);
+    setPositionMappings(initialPositionMappings);
+
+    // If there are unmapped values, present the Wizard Screen
+    if (unmappedGendersList.length > 0 || unmappedPositionsList.length > 0) {
+      setWizardData({
+        rawGenders: unmappedGendersList,
+        rawPositions: unmappedPositionsList,
+      });
+      toast.info("Some values need manual verification mapping before import.");
+    } else {
+      // Direct Import (no unmatched fields)
+      executeImport(initialGenderMappings, initialPositionMappings);
+    }
+  };
+
+function normalizePositionValue(val: string): string {
+  if (!val) return "";
+  
+  const clean = val.trim().toLowerCase().replace(/[^a-z0-9\s]/g, "");
+  if (normalizedPresetsCache[clean]) return normalizedPresetsCache[clean];
+  
+  // Extract leading digit fallback, e.g. "#7 Right Winger" -> "7"
+  const match = val.match(/^\s*#?(\d+)/);
+  if (match) return match[1];
+
+  return val.trim();
+}
+
+  const executeImport = async (
+    gMappings: Record<string, "male" | "female">,
+    pMappings: Record<string, string>
+  ) => {
     setIsLoading(true);
     try {
-      // Process data rows according to mappings
       const playersList = parsedData.map((row) => {
         const first_name = mappings.first_name !== -1 ? row[mappings.first_name] : "";
         const last_name = mappings.last_name !== -1 ? row[mappings.last_name] : "";
         const rawDob = mappings.date_of_birth !== -1 ? row[mappings.date_of_birth] : "";
-        const gender = mappings.gender !== -1 ? row[mappings.gender] : "Coed";
+        
+        // Resolve gender mapping
+        const rawGender = mappings.gender !== -1 ? row[mappings.gender]?.trim() : "";
+        const gender = gMappings[rawGender] || "male"; // default fallback
+
         const tryout_number = mappings.tryout_number !== -1 ? row[mappings.tryout_number] : "";
-        const position = mappings.position !== -1 ? row[mappings.position] : "";
+        
+        // Resolve position mapping
+        const rawPos = mappings.position !== -1 ? row[mappings.position]?.trim() : "";
+        const mappedPos = pMappings[rawPos] || rawPos || "";
+        const position = normalizePositionValue(mappedPos);
+
         const rating = mappings.rating !== -1 ? Number(row[mappings.rating]) || 0 : 0;
 
-        // Try mapping date format
         let date_of_birth = "";
         if (rawDob) {
           const d = new Date(rawDob);
@@ -277,22 +387,23 @@ export default function CSVImporter({
           position,
           rating,
         };
-      }).filter(p => p.first_name && p.last_name); // Clean blank rows
+      }).filter(p => p.first_name && p.last_name);
 
       if (playersList.length === 0) {
-        toast.error("No valid players parsed from mapping. Please check row data.");
+        toast.error("No valid players parsed. Check mapping columns.");
         setIsLoading(false);
         return;
       }
 
       const targetEventId = importMode === "event" && selectedEventId ? Number(selectedEventId) : undefined;
-
       const res = await bulkImportPlayers(playersList, Number(selectedSeasonId), targetEventId);
+
       if (res.success) {
         const modeLabel = importMode === "event" ? "registered for event" : "imported to season";
         toast.success(`Success! ${res.count} players ${modeLabel}.`);
         setCsvText("");
         setIsParsed(false);
+        setWizardData(null);
         setParsedData([]);
         onImportSuccess();
       } else {
@@ -435,7 +546,104 @@ export default function CSVImporter({
         </div>
       </div>
 
-      {!isParsed ? (
+      {wizardData ? (
+        /* WIZARD VALUE VERIFICATION STEP */
+        <div className='space-y-6 bg-yellow-500/5 border border-yellow-500/20 p-5 rounded-2xl animate-fadeIn'>
+          <div>
+            <h3 className='text-sm font-bold text-yellow-600 flex items-center gap-2'>
+              <AlertCircle size={18} />
+              Verify Value Mappings
+            </h3>
+            <p className='text-xs text-muted mt-1 leading-relaxed'>
+              We found some unrecognized gender or position values. Please choose the correct database values for them.
+              Unmapped entries will fall back to safe defaults.
+            </p>
+          </div>
+
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+            {/* Gender mappings column */}
+            {wizardData.rawGenders.length > 0 && (
+              <div className='space-y-3'>
+                <h4 className='text-xs font-bold text-text-label uppercase border-b border-border pb-1'>
+                  Gender Column Mappings
+                </h4>
+                <div className='space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar'>
+                  {wizardData.rawGenders.map((raw) => (
+                    <div key={raw} className='flex items-center justify-between gap-3 bg-surface p-2 rounded-lg border border-border'>
+                      <span className='text-xs font-bold text-text truncate max-w-[150px]' title={raw}>
+                        &quot;{raw}&quot;
+                      </span>
+                      <ChevronSelect
+                        value={genderMappings[raw] || "male"}
+                        onChange={(val) => setGenderMappings(prev => ({ ...prev, [raw]: val as "male" | "female" }))}
+                        options={[
+                          { value: "male", label: "Male" },
+                          { value: "female", label: "Female" },
+                        ]}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Position mappings column */}
+            {wizardData.rawPositions.length > 0 && (
+              <div className='space-y-3'>
+                <h4 className='text-xs font-bold text-text-label uppercase border-b border-border pb-1'>
+                  Position Column Mappings
+                </h4>
+                <div className='space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar'>
+                  {wizardData.rawPositions.map((raw) => (
+                    <div key={raw} className='flex flex-col gap-1.5 bg-surface p-2.5 rounded-lg border border-border'>
+                      <span className='text-xs font-bold text-text truncate block' title={raw}>
+                        Raw value: &quot;{raw}&quot;
+                      </span>
+                      <div className='flex gap-2 items-center'>
+                        <ChevronSelect
+                          value={positionMappings[raw] || STANDARD_POSITIONS[0]}
+                          onChange={(val) => setPositionMappings(prev => ({ ...prev, [raw]: val }))}
+                          options={STANDARD_POSITIONS.map(p => ({ value: p, label: p }))}
+                        />
+                        <Input
+                          placeholder='Custom value...'
+                          value={positionMappings[raw] || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setPositionMappings(prev => ({ ...prev, [raw]: val }));
+                          }}
+                          className='text-xs !mb-0 font-medium py-1 px-2 h-[32px] flex-1'
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className='flex justify-between items-center border-t border-border pt-4 mt-4'>
+            <Button variant='outline' onClick={() => setWizardData(null)}>
+              Modify Mappings
+            </Button>
+            <Button
+              variant='success'
+              onClick={() => executeImport(genderMappings, positionMappings)}
+              disabled={isLoading}
+              className='px-6 flex items-center gap-1.5'
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className='animate-spin' size={14} />
+                  <span>Importing...</span>
+                </>
+              ) : (
+                <span>Confirm Mappings & Import Players</span>
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : !isParsed ? (
         <div className='space-y-4'>
           <div>
             <label className='font-medium text-sm text-text-label flex justify-between items-center mb-1'>
@@ -471,7 +679,6 @@ export default function CSVImporter({
         </div>
       ) : (
         <div className='space-y-6 animate-fadeIn'>
-
           {/* Mapping Controls */}
           <div>
             <h3 className='text-sm font-bold text-text mb-2 flex items-center gap-1.5'>
@@ -489,7 +696,6 @@ export default function CSVImporter({
               </span>
             </div>
             <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3'>
-              {/* Field mapping selectors */}
               {[
                 { key: "first_name", label: "First Name *", required: true },
                 { key: "last_name", label: "Last Name *", required: true },
@@ -502,7 +708,6 @@ export default function CSVImporter({
                 const isUnmappedRequired = field.required && mappings[field.key] === -1;
                 const isAutoGuessed = autoGuessedFields.has(field.key) && mappings[field.key] !== -1;
 
-                // Determine style: pink for unmapped required, orange for auto-guessed, default otherwise
                 let containerClass = "border-border bg-background/30";
                 let selectBorderClass = "border-border";
                 let badgeContent = null;
@@ -608,7 +813,7 @@ export default function CSVImporter({
               <span className='text-xs text-muted'>
                 Ready to {importMode === "event" ? "register" : "import"} {parsedData.length} records
               </span>
-              <Button onClick={handleImport} disabled={isLoading} variant='success' className='px-6'>
+              <Button onClick={handleImportAttempt} disabled={isLoading} variant='success' className='px-6'>
                 {isLoading
                   ? "Importing..."
                   : importMode === "event"
@@ -620,5 +825,29 @@ export default function CSVImporter({
         </div>
       )}
     </div>
+  );
+}
+
+function ChevronSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className='text-xs bg-background font-semibold py-1.5 px-2 border border-border rounded-lg outline-none cursor-pointer focus:ring-1 focus:ring-primary'
+    >
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
   );
 }

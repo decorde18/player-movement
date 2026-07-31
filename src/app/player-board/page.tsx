@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { 
   getSelectorData, 
   getBoardData, 
@@ -28,12 +29,18 @@ import {
   Undo2,
   AlertTriangle,
   FileText,
-  ArrowUpDown
+  ArrowUpDown,
+  Filter,
+  CheckSquare,
+  Square,
+  ArrowRightLeft,
+  Award
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import { smartCompare } from "@/lib/utils/smartSort";
+import { STANDARD_POSITIONS } from "@/lib/utils/positionPresets";
 
 export default function PlayerBoardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,10 +60,17 @@ export default function PlayerBoardPage() {
   const [localPlacements, setLocalPlacements] = useState<Record<number, number | null>>({});
 
   // Sorting columns State
-  // Format: Record<fieldId | "unassigned", { key: "tryout_number" | "name" | "rating" | "rank", direction: "asc" | "desc" }>
+  // Format: Record<fieldId | "unassigned", { key: "tryout_number" | "name" | "rating" | "rank" | "position", direction: "asc" | "desc" }>
   const [columnSorts, setColumnSorts] = useState<Record<string, { key: string; direction: "asc" | "desc" }>>({
     unassigned: { key: "tryout_number", direction: "asc" },
   });
+
+  // Position & Rating Filters State
+  const [filterPosition, setFilterPosition] = useState<string>("all");
+  const [filterRating, setFilterRating] = useState<string>("all");
+
+  // Bulk Checkbox Selection State
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<number>>(new Set());
 
   // Field Editing State
   const [newFieldName, setNewFieldName] = useState("");
@@ -133,6 +147,7 @@ export default function PlayerBoardPage() {
     if (!selectedSession) {
       setBoardData(null);
       setLocalPlacements({});
+      setSelectedPlayerIds(new Set());
       return;
     }
     setLoadingBoard(true);
@@ -142,6 +157,7 @@ export default function PlayerBoardPage() {
         selectedDivision ? Number(selectedDivision) : undefined
       );
       setBoardData(data);
+      setSelectedPlayerIds(new Set());
 
       // Check for saved local placements in localStorage
       const localSaved = localStorage.getItem(`player_board_placements_${selectedSession}`);
@@ -338,7 +354,6 @@ export default function PlayerBoardPage() {
     const fieldId = fieldToDelete.id;
 
     setIsSubmitting(true);
-    // Update local placements: any player assigned to deleted field goes back to unassigned
     setLocalPlacements(prev => {
       const next = { ...prev };
       Object.keys(next).forEach(pid => {
@@ -463,8 +478,13 @@ export default function PlayerBoardPage() {
         return config.direction === "asc" ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
       }
 
+      if (config.key === "position") {
+        const posA = parseInt(a.position) || 999;
+        const posB = parseInt(b.position) || 999;
+        return config.direction === "asc" ? posA - posB : posB - posA;
+      }
+
       if (config.key === "rank") {
-        // Lower rank numbers go to the top (1, 2, 3...). 0 or null goes to bottom
         const rankA = a.rank || 999999;
         const rankB = b.rank || 999999;
         return config.direction === "asc" ? rankA - rankB : rankB - rankA;
@@ -476,6 +496,50 @@ export default function PlayerBoardPage() {
     });
   };
 
+  // Bulk Selection Toggles
+  const handleToggleSelectPlayer = (playerId: number) => {
+    setSelectedPlayerIds(prev => {
+      const next = new Set(prev);
+      if (next.has(playerId)) {
+        next.delete(playerId);
+      } else {
+        next.add(playerId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = (playersList: any[]) => {
+    const allSelected = playersList.every(p => selectedPlayerIds.has(p.id));
+    setSelectedPlayerIds(prev => {
+      const next = new Set(prev);
+      playersList.forEach(p => {
+        if (allSelected) {
+          next.delete(p.id);
+        } else {
+          next.add(p.id);
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleBulkMove = (targetFieldId: number | null) => {
+    if (selectedPlayerIds.size === 0) return;
+    
+    setLocalPlacements(prev => {
+      const next = { ...prev };
+      selectedPlayerIds.forEach(pid => {
+        next[pid] = targetFieldId;
+      });
+      localStorage.setItem(`player_board_placements_${selectedSession}`, JSON.stringify(next));
+      return next;
+    });
+
+    toast.success(`Moved ${selectedPlayerIds.size} players in bulk.`);
+    setSelectedPlayerIds(new Set());
+  };
+
   if (!selectors) {
     return (
       <div className='min-h-[60vh] flex flex-col items-center justify-center gap-3 text-text'>
@@ -485,21 +549,40 @@ export default function PlayerBoardPage() {
     );
   }
 
+  // Filters logic helper
+  const matchesFilters = (p: any) => {
+    if (filterPosition !== "all") {
+      const posVal = (p.position || "").trim();
+      if (posVal !== filterPosition && !posVal.startsWith(`${filterPosition} `) && !posVal.startsWith(`${filterPosition}-`)) {
+        return false;
+      }
+    }
+    if (filterRating !== "all") {
+      const ratVal = p.rating || 0;
+      if (filterRating === "9") return ratVal >= 9;
+      if (filterRating === "8") return ratVal >= 8 && ratVal < 9;
+      if (filterRating === "7") return ratVal >= 7 && ratVal < 8;
+      if (filterRating === "6") return ratVal >= 6 && ratVal < 7;
+      if (filterRating === "under6") return ratVal < 6;
+    }
+    return true;
+  };
+
   // Segment players based on localPlacements
   const allPlayers = boardData?.players || [];
   const rawUnassigned = allPlayers.filter((p: any) => {
     const currentFieldId = localPlacements[p.id] !== undefined ? localPlacements[p.id] : p.fieldId;
-    return currentFieldId === null && p.availability === "available" && p.attendance === "present";
+    return currentFieldId === null && p.availability === "available" && p.attendance === "present" && matchesFilters(p);
   });
   const unassignedPlayers = sortPlayers(rawUnassigned, "unassigned");
   const fields = boardData?.fields || [];
 
   return (
-    <div className='space-y-6 w-full flex flex-col min-h-0 h-full animate-fadeIn'>
+    <div className='space-y-6 w-full flex flex-col min-h-0 h-full animate-fadeIn pb-24 relative'>
       
       {/* Top Selectors Card */}
       <Card className='p-4 bg-surface/80 border-border backdrop-blur-md flex flex-wrap gap-4 items-end'>
-        <div className='flex-1 min-w-[200px]'>
+        <div className='flex-1 min-w-[150px]'>
           <label className='block text-[0.65rem] font-bold text-text-label uppercase tracking-wider mb-1'>Season</label>
           <select 
             value={selectedSeason} 
@@ -512,7 +595,7 @@ export default function PlayerBoardPage() {
           </select>
         </div>
 
-        <div className='flex-1 min-w-[200px]'>
+        <div className='flex-1 min-w-[150px]'>
           <label className='block text-[0.65rem] font-bold text-text-label uppercase tracking-wider mb-1'>Event</label>
           <select 
             value={selectedEvent} 
@@ -526,7 +609,7 @@ export default function PlayerBoardPage() {
           </select>
         </div>
 
-        <div className='flex-1 min-w-[200px]'>
+        <div className='flex-1 min-w-[150px]'>
           <label className='block text-[0.65rem] font-bold text-text-label uppercase tracking-wider mb-1'>Session</label>
           <select 
             value={selectedSession} 
@@ -542,7 +625,7 @@ export default function PlayerBoardPage() {
           </select>
         </div>
 
-        <div className='flex-1 min-w-[200px]'>
+        <div className='flex-1 min-w-[150px]'>
           <label className='block text-[0.65rem] font-bold text-text-label uppercase tracking-wider mb-1'>Division Filter</label>
           <select 
             value={selectedDivision} 
@@ -555,6 +638,7 @@ export default function PlayerBoardPage() {
             ))}
           </select>
         </div>
+
       </Card>
 
       {/* Main Drag & Drop Workspace */}
@@ -568,9 +652,40 @@ export default function PlayerBoardPage() {
           
           {/* Action Toolbar */}
           <div className='flex flex-wrap items-center justify-between gap-4'>
-            {/* Create Field Form */}
-            <div className='flex items-center gap-4 max-w-xl w-full'>
-              <form onSubmit={handleCreateField} className='flex items-center gap-2 flex-1'>
+            {/* Create Field Form & Filters Row */}
+            <div className='flex flex-wrap items-center gap-4 flex-1 min-w-0'>
+              {/* Board Filters Dropdowns */}
+              <div className='flex items-center gap-2'>
+                <select
+                  value={filterPosition}
+                  onChange={(e) => setFilterPosition(e.target.value)}
+                  className='text-xs font-semibold py-2 px-3 border border-border rounded-lg bg-background cursor-pointer focus:ring-1 focus:ring-primary focus:outline-none w-36 h-[38px]'
+                >
+                  <option value='all'>All Positions</option>
+                  {STANDARD_POSITIONS.map(p => (
+                    <option key={p} value={p}>Pos: {p}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={filterRating}
+                  onChange={(e) => setFilterRating(e.target.value)}
+                  className='text-xs font-semibold py-2 px-3 border border-border rounded-lg bg-background cursor-pointer focus:ring-1 focus:ring-primary focus:outline-none w-36 h-[38px]'
+                >
+                  <option value='all'>All Ratings</option>
+                  <option value='9'>Rating &ge; 9</option>
+                  <option value='8'>Rating 8.0 - 8.9</option>
+                  <option value='7'>Rating 7.0 - 7.9</option>
+                  <option value='6'>Rating 6.0 - 6.9</option>
+                  <option value='under6'>Rating &lt; 6.0</option>
+                </select>
+              </div>
+
+              {/* Separator */}
+              <div className='h-6 w-px bg-border hidden sm:block' />
+
+              {/* Create Field Form */}
+              <form onSubmit={handleCreateField} className='flex items-center gap-2 max-w-xs w-full'>
                 <Input 
                   placeholder='New Field Name (e.g. Field A)...'
                   value={newFieldName}
@@ -631,6 +746,19 @@ export default function PlayerBoardPage() {
                 </>
               )}
 
+              {selectedSession && (
+                <Link href={`/admin/sessions/${selectedSession}/ratings`}>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='flex items-center gap-1.5 font-bold text-xs border-primary/35 text-primary hover:bg-primary/5 h-[38px]'
+                  >
+                    <Award size={14} />
+                    <span>Enter Ratings</span>
+                  </Button>
+                </Link>
+              )}
+
               {fields.length === 0 && (
                 <Button
                   onClick={handleCarryOver}
@@ -665,10 +793,20 @@ export default function PlayerBoardPage() {
                   <h3 className='font-extrabold text-sm text-text flex items-center gap-1.5'>
                     <Users size={16} className='text-muted' />
                     <span>Unassigned Roster</span>
+                    <span className='text-[10px] font-extrabold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-full'>
+                      {rawUnassigned.length}
+                    </span>
                   </h3>
-                  <div className='flex items-center gap-1.5 mt-1'>
+                  <div className='flex items-center gap-1.5 mt-1' onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type='checkbox'
+                      checked={unassignedPlayers.length > 0 && unassignedPlayers.every((p: any) => selectedPlayerIds.has(p.id))}
+                      onChange={() => handleSelectAll(unassignedPlayers)}
+                      className='rounded text-primary focus:ring-primary bg-background border-border cursor-pointer h-3.5 w-3.5 mr-1'
+                      title='Select/Deselect All Filtered'
+                    />
                     <span className='text-[10px] font-bold text-muted'>
-                      {unassignedPlayers.length} {unassignedPlayers.length === 1 ? "Player" : "Players"}
+                      Select All ({unassignedPlayers.length})
                     </span>
                   </div>
                 </div>
@@ -683,6 +821,7 @@ export default function PlayerBoardPage() {
                   <option value='tryout_number'>Sort: Tryout #</option>
                   <option value='name'>Sort: Name</option>
                   <option value='rating'>Sort: Rating</option>
+                  <option value='position'>Sort: Position</option>
                 </select>
               </div>
 
@@ -698,6 +837,8 @@ export default function PlayerBoardPage() {
                       key={player.id} 
                       player={player} 
                       isSelected={selectedPlayerId === player.id}
+                      isChecked={selectedPlayerIds.has(player.id)}
+                      onToggleCheck={() => handleToggleSelectPlayer(player.id)}
                       onDragStart={(e) => handleDragStart(e, player.id)}
                       onTap={() => handlePlayerTap(player.id)}
                       onOpenNotes={() => handleOpenNotes(player)}
@@ -714,7 +855,7 @@ export default function PlayerBoardPage() {
                 {fields.map((field: any) => {
                   const rawFieldPlayers = allPlayers.filter((p: any) => {
                     const currentFieldId = localPlacements[p.id] !== undefined ? localPlacements[p.id] : p.fieldId;
-                    return currentFieldId === field.id && p.availability === "available" && p.attendance === "present";
+                    return currentFieldId === field.id && p.availability === "available" && p.attendance === "present" && matchesFilters(p);
                   });
                   const fieldPlayers = sortPlayers(rawFieldPlayers, field.id.toString());
                   const isEditing = editingFieldId === field.id;
@@ -745,6 +886,9 @@ export default function PlayerBoardPage() {
                           <div className='flex flex-col min-w-0'>
                             <div className='flex items-center gap-1.5 min-w-0'>
                               <h3 className='font-extrabold text-sm text-text truncate'>{field.name}</h3>
+                              <span className='text-[10px] font-extrabold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-full shrink-0'>
+                                {rawFieldPlayers.length}
+                              </span>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -757,9 +901,18 @@ export default function PlayerBoardPage() {
                                 <Edit2 size={12} />
                               </button>
                             </div>
-                            <span className='text-[10px] font-bold text-muted mt-1'>
-                              {fieldPlayers.length} {fieldPlayers.length === 1 ? "Player" : "Players"}
-                            </span>
+                            <div className='flex items-center gap-1.5 mt-1' onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type='checkbox'
+                                checked={fieldPlayers.length > 0 && fieldPlayers.every((p: any) => selectedPlayerIds.has(p.id))}
+                                onChange={() => handleSelectAll(fieldPlayers)}
+                                className='rounded text-primary focus:ring-primary bg-background border-border cursor-pointer h-3.5 w-3.5 mr-1'
+                                title='Select/Deselect All Filtered'
+                              />
+                              <span className='text-[10px] font-bold text-muted'>
+                                Select All ({fieldPlayers.length})
+                              </span>
+                            </div>
                           </div>
                         )}
 
@@ -774,6 +927,7 @@ export default function PlayerBoardPage() {
                             <option value='tryout_number'>Sort: Tryout #</option>
                             <option value='name'>Sort: Name</option>
                             <option value='rating'>Sort: Rating</option>
+                            <option value='position'>Sort: Position</option>
                             <option value='rank'>Sort: Rank</option>
                           </select>
                           <button
@@ -801,6 +955,8 @@ export default function PlayerBoardPage() {
                               key={player.id} 
                               player={player} 
                               isSelected={selectedPlayerId === player.id}
+                              isChecked={selectedPlayerIds.has(player.id)}
+                              onToggleCheck={() => handleToggleSelectPlayer(player.id)}
                               onDragStart={(e) => handleDragStart(e, player.id)}
                               onTap={() => handlePlayerTap(player.id)}
                               onOpenNotes={() => handleOpenNotes(player)}
@@ -831,6 +987,45 @@ export default function PlayerBoardPage() {
         <div className='h-[40vh] flex flex-col items-center justify-center border border-border/60 bg-surface/30 rounded-2xl text-center p-8 text-muted'>
           <Grid size={38} className='mx-auto mb-2 text-muted/30' />
           <span className='font-bold text-sm'>Select a Session above to view the Movement Board</span>
+        </div>
+      )}
+
+      {/* Floating Bulk Action Bar */}
+      {selectedPlayerIds.size > 0 && (
+        <div className='fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 border border-primary/30 p-3 px-6 rounded-2xl shadow-xl backdrop-blur-md flex items-center gap-4 z-50 animate-fadeInUp'>
+          <span className='text-xs font-bold text-text flex items-center gap-1.5'>
+            <ArrowRightLeft className='text-primary' size={16} />
+            <span>{selectedPlayerIds.size} Players Selected</span>
+          </span>
+          
+          <div className='h-4 w-px bg-border' />
+
+          <div className='flex items-center gap-2'>
+            <span className='text-[10px] font-extrabold uppercase text-muted'>Move to:</span>
+            <select
+              onChange={(e) => {
+                const val = e.target.value;
+                handleBulkMove(val === "unassigned" ? null : Number(val));
+              }}
+              defaultValue=''
+              className='text-xs font-bold bg-background border border-border rounded-lg px-2 py-1 cursor-pointer focus:ring-1 focus:ring-primary focus:outline-none'
+            >
+              <option value='' disabled>-- Choose Location --</option>
+              <option value='unassigned'>Unassigned Roster</option>
+              {fields.map((f: any) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <Button
+            onClick={() => setSelectedPlayerIds(new Set())}
+            variant='outline'
+            size='xs'
+            className='font-bold text-muted hover:text-text'
+          >
+            Clear Selection
+          </Button>
         </div>
       )}
 
@@ -958,14 +1153,16 @@ export default function PlayerBoardPage() {
   );
 }
 
-function PlayerCard({ player, isSelected, onDragStart, onTap, onOpenNotes }: { 
+function PlayerCard({ player, isSelected, isChecked, onToggleCheck, onDragStart, onTap, onOpenNotes }: { 
   player: any; 
   isSelected: boolean;
+  isChecked: boolean;
+  onToggleCheck: () => void;
   onDragStart: (e: React.DragEvent) => void;
   onTap: () => void;
   onOpenNotes: () => void;
 }) {
-  const isGK = player.position?.toLowerCase().includes("goalkeeper") || player.position?.toLowerCase() === "gk";
+  const isGK = player.position?.toLowerCase().includes("goalkeeper") || player.position === "1" || player.position?.toLowerCase() === "gk";
 
   return (
     <div 
@@ -974,14 +1171,27 @@ function PlayerCard({ player, isSelected, onDragStart, onTap, onOpenNotes }: {
       onClick={onTap}
       className={`p-2 px-3 rounded-lg border hover:border-primary/50 transition-all cursor-grab active:cursor-grabbing select-none shadow-sm flex flex-col justify-center relative group
         ${isSelected ? "border-primary ring-2 ring-primary/20 bg-primary/5" : ""}
-        ${!isSelected && isGK ? "bg-emerald-500/5 border-emerald-500/30 hover:bg-emerald-500/10" : ""}
-        ${!isSelected && !isGK ? "bg-background border-border/80" : ""}
+        ${isChecked ? "border-primary bg-primary/10 ring-1 ring-primary/30" : ""}
+        ${!isSelected && !isChecked && isGK ? "bg-emerald-500/5 border-emerald-500/30 hover:bg-emerald-500/10" : ""}
+        ${!isSelected && !isChecked && !isGK ? "bg-background border-border/80" : ""}
       `}
     >
       <div className='flex items-center justify-between gap-2 pr-6'>
-        <span className={`font-bold text-xs truncate ${isGK && !isSelected ? "text-emerald-700 dark:text-emerald-300" : "text-text"}`}>
-          {player.first_name} {player.last_name}
-        </span>
+        <div className='flex items-center gap-2 min-w-0'>
+          <input
+            type='checkbox'
+            checked={isChecked}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleCheck();
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className='rounded text-primary focus:ring-primary bg-background border-border cursor-pointer h-3.5 w-3.5'
+          />
+          <span className={`font-bold text-xs truncate ${isGK && !isSelected && !isChecked ? "text-emerald-700 dark:text-emerald-300" : "text-text"}`}>
+            {player.first_name} {player.last_name}
+          </span>
+        </div>
         {player.tryout_number && (
           <span className='text-[10px] font-extrabold text-accent shrink-0'>
             #{player.tryout_number}
@@ -989,10 +1199,14 @@ function PlayerCard({ player, isSelected, onDragStart, onTap, onOpenNotes }: {
         )}
       </div>
 
-      <div className='flex items-center justify-between text-[10px] font-semibold text-muted mt-0.5'>
+      <div className='flex items-center justify-between text-[10px] font-semibold text-muted mt-0.5 pl-5.5'>
         <span>
           Rating: <strong className='text-primary'>{player.rating}</strong>
-          {isGK && <span className='ml-1 text-[8px] font-extrabold px-1 rounded bg-emerald-500/10 text-emerald-600 uppercase border border-emerald-500/20'>GK</span>}
+          {player.position && (
+            <span className='ml-2 inline-block text-[8px] font-extrabold px-1 rounded bg-blue-500/10 text-blue-600 uppercase border border-blue-500/20'>
+              Pos: {player.position}
+            </span>
+          )}
         </span>
         <span className='truncate text-[9px] opacity-70 max-w-[100px] text-right' title={player.assignedTeamName}>
           {player.assignedTeamName}

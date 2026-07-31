@@ -60,17 +60,32 @@ Phase 4 — Fields/Groups & Drag-and-Drop Movement
   • [x] GKs need a different color
 
 
-The active division filter should show only the players registered for that division (age group). The event and sessions should be for only those players as well
+• [x] The active division filter should show only the players registered for that division (age group). The event and sessions should be for only those players as well (division-specific sessions and player rosters are fully active and configurable)
 
 Phase 5 — Ratings
-  • [ ] Rating entry UI per coach, per field, per session (session_player_ratings) 
-    ○ [ ] Only the entering coach's own numbers are visible/editable by them
-    ○ [ ] Coordinator can see all coaches' ratings for that session
-  • [ ] Aggregate session-level rating computed from session_player_ratings → stored/displayed on session_players
-  • [ ] Carry-forward logic: after an event closes, update season_players.rating from the event's final ratings
-  • [ ] Rating history view on player detail page (which event, which session, which coach, what score)
+  • [x] Rating entry UI per coach, per field, per session (session_player_ratings) 
+    ○ [x] Only the entering coach's own numbers are visible/editable by them
+    ○ [x] Coordinator can see all coaches' ratings for that session
+  • [x] Aggregate session-level rating computed from session_player_ratings → stored/displayed on session_players
+  • [x] Carry-forward logic: after an event closes, update season_players.rating from the event's final ratings
+  • [x] Rating history view on player detail page (which event, which session, which coach, what score)
   • [x] Player cards should have a note icon that brings up a pop up of that player that shows all sessions in the event and the player's rating for that session with attendance.
+
+  • [x] when creating event, the default should be all age-groups selected
+  • [x] same for session if done by admin, but only coaches options if done by lead coach
+  • [x] player sort needs position
+  • [x] Player card needs position
+  • [x] Player registry needs position
+
+  • [x] similar to sort, we need filter (position, rating)
+  • [x] we need the ability to select all that are filtered and move them as bulk
+  • [x] when assigning ratings, we need the same ability to bulk assigning (ie all players on field 1 get a 1, so on but the coach will determine the numbers)
   
+  The ratings page should filter by age group
+  
+Player card should only have the sessions that player was registered to.
+This card should also have notes from coaches (each coach will see their own, age group will see all)
+
 Phase 6 — Rankings
   • [ ] Ranking computation: group players by rating tier, auto-rank within tier → event_player_rankings
   • [ ] Coordinator "finalize" action: locks ranking, sets is_finalized / finalized_by / finalized_at

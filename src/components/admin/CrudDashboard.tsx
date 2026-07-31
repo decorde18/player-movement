@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import CSVImporter from "./CSVImporter";
+import Modal from "../ui/Modal";
 
 export interface ColumnConfig {
   key: string;
@@ -87,6 +88,13 @@ export default function CrudDashboard({
 
   // Subtable Form States: Record<subtableTitle, Record<fieldKey, value>>
   const [subtableFormStates, setSubtableFormStates] = useState<Record<string, Record<string, any>>>({});
+
+  // Deletion modal target state
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: any;
+    label: string;
+    sub?: SubtableConfig;
+  } | null>(null);
 
   const startCreate = () => {
     const initialState: Record<string, any> = {};
@@ -163,21 +171,52 @@ export default function CrudDashboard({
     });
   };
 
-  const handleParentDelete = async (id: any, label: string) => {
-    if (!confirm(`Are you sure you want to delete "${label}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleParentDelete = (id: any, label: string) => {
+    setDeleteTarget({ id, label });
+  };
 
-    try {
-      const res = await onDelete(id);
-      if (res.success) {
-        toast.success(`Deleted: ${label}`);
-      } else {
-        toast.error(res.error || "Failed to delete record.");
+  const handleSubtableDelete = (sub: SubtableConfig, id: any) => {
+    setDeleteTarget({ id, label: `sub-record from ${sub.title}`, sub });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    const { id, label, sub } = deleteTarget;
+    startTransition(async () => {
+      try {
+        if (sub) {
+          const res = await sub.onDelete(id);
+          if (res.success) {
+            toast.success("Child record deleted.");
+            // Refresh parent record in form state if we are currently editing
+            if (editingItem) {
+              const updatedParentList = (editingItem[sub.relationKey] || []).filter((item: any) => item.id !== id);
+              setEditingItem({
+                ...editingItem,
+                [sub.relationKey]: updatedParentList
+              });
+            }
+          } else {
+            toast.error(res.error || "Failed to delete child record.");
+          }
+        } else {
+          const res = await onDelete(id);
+          if (res.success) {
+            toast.success(`Deleted: ${label}`);
+          } else {
+            toast.error(res.error || "Failed to delete record.");
+          }
+        }
+      } catch (e: any) {
+        toast.error("Deletion failed: " + e.message);
       }
-    } catch (e: any) {
-      toast.error("Delete failed: " + e.message);
-    }
+      setDeleteTarget(null);
+    });
+  };
+
+  const handleSubtableDeleteLocal = (sub: SubtableConfig, id: any) => {
+    handleSubtableDelete(sub, id);
   };
 
   const handleSubtableSave = async (e: React.FormEvent, sub: SubtableConfig) => {
@@ -215,25 +254,6 @@ export default function CrudDashboard({
         toast.error(res.error || "Failed to save child record.");
       }
     });
-  };
-
-  const handleSubtableDelete = async (sub: SubtableConfig, childId: any) => {
-    if (!confirm("Are you sure you want to delete this sub-record?")) return;
-
-    try {
-      const res = await sub.onDelete(childId);
-      if (res.success) {
-        toast.success("Child record deleted.");
-        const freshParent = items.find((item) => item.id === editingItem.id);
-        if (freshParent) {
-          setEditingItem(freshParent);
-        }
-      } else {
-        toast.error(res.error || "Failed to delete sub-record.");
-      }
-    } catch (e: any) {
-      toast.error("Delete failed: " + e.message);
-    }
   };
 
   // Searching main items
@@ -524,7 +544,7 @@ export default function CrudDashboard({
                                       <td className='p-2.5 text-right'>
                                         <button
                                           type='button'
-                                          onClick={() => handleSubtableDelete(sub, child.id)}
+                                          onClick={() => handleSubtableDeleteLocal(sub, child.id)}
                                           className='p-1 rounded text-muted hover:text-danger hover:bg-danger/10 transition-all cursor-pointer'
                                         >
                                           <Trash2 size={14} />
@@ -624,6 +644,32 @@ export default function CrudDashboard({
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal Dialog for Delete Actions */}
+      <Modal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title='Confirm Deletion'
+        size='sm'
+        footer={
+          <>
+            <Button variant='outline' onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant='danger' onClick={handleConfirmDelete} disabled={isPending}>
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p className='text-sm text-text font-medium leading-relaxed flex items-start gap-2.5'>
+          <AlertCircle className='text-danger shrink-0' size={20} />
+          <span>
+            Are you sure you want to delete <strong className='text-primary'>&quot;{deleteTarget?.label}&quot;</strong>? This action cannot be undone and will delete related associations.
+          </span>
+        </p>
+      </Modal>
+
     </div>
   );
 }

@@ -86,7 +86,9 @@ export async function getBoardData(sessionId: number, divisionId?: number) {
   const event = session.events;
   const divisionIds = divisionId 
     ? [divisionId] 
-    : event.event_divisions.map((d) => d.season_age_group_id);
+    : (session.season_age_group_id
+        ? [session.season_age_group_id]
+        : event.event_divisions.map((d) => d.season_age_group_id));
 
   // 2. Fetch session fields
   const fields = await db.session_fields.findMany({

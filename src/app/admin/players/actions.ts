@@ -6,6 +6,7 @@ import { getScopeFilters } from "@/lib/permissions";
 import { getActiveClubId } from "@/lib/actions/clubs";
 import { getActiveSeasonId } from "@/lib/actions/season-actions";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 export interface PlayerInput {
   id?: number; // Optional ID for updates
@@ -30,8 +31,25 @@ export async function getPlayersData() {
   const scope = getScopeFilters(session, activeClubId);
 
   const clubFilter = scope.filters.club();
-  const playerFilter = scope.filters.player();
   const seasonFilter = scope.filters.season();
+
+  const cookieStore = await cookies();
+  const activeAgeGroupIdStr = cookieStore.get("activeAgeGroupId")?.value;
+  const activeAgeGroupId = activeAgeGroupIdStr ? parseInt(activeAgeGroupIdStr, 10) : null;
+
+  // Filter players by activeAgeGroupId if selected
+  const playerFilter = {
+    ...scope.filters.player(),
+    ...(activeAgeGroupId
+      ? {
+          season_players: {
+            some: {
+              season_age_group_id: activeAgeGroupId,
+            },
+          },
+        }
+      : {}),
+  };
 
   const [players, clubs, seasons, seasonAgeGroups, events] = await Promise.all([
     db.players.findMany({

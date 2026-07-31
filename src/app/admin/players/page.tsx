@@ -163,6 +163,21 @@ export default function PlayersAdminPage() {
       ),
     },
     {
+      key: "position",
+      label: "Position",
+      type: "text",
+      render: (p: any) => {
+        const pos = p.season_players?.[0]?.position;
+        return pos ? (
+          <span className='inline-block text-[0.65rem] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'>
+            Pos: {pos}
+          </span>
+        ) : (
+          <span className='text-muted/40 italic'>--</span>
+        );
+      },
+    },
+    {
       key: "season_players",
       label: "Active Assignments",
       type: "custom",

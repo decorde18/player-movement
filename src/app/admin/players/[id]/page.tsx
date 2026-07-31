@@ -267,6 +267,84 @@ export default function PlayerDetailPage({ params }: { params: Promise<{ id: str
             )}
           </Card>
 
+          {/* Evaluation Ratings History Section */}
+          <Card className='p-6 bg-surface/50 border-border backdrop-blur-xl space-y-4'>
+            <h3 className='text-lg font-bold text-text flex items-center gap-2'>
+              <Award size={20} className='text-primary' />
+              Evaluation Ratings & Attendance History
+            </h3>
+
+            {player.session_players && player.session_players.length > 0 ? (
+              <div className='border border-border rounded-xl overflow-hidden bg-background/20'>
+                <table className='w-full text-left text-xs'>
+                  <thead className='bg-background text-text-label font-bold border-b border-border'>
+                    <tr>
+                      <th className='p-3'>Event / Session</th>
+                      <th className='p-3 text-center'>Date</th>
+                      <th className='p-3 text-center'>Attendance</th>
+                      <th className='p-3 text-center'>Rank</th>
+                      <th className='p-3 text-center'>Avg Rating</th>
+                      <th className='p-3'>Evaluators Breakdown</th>
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y divide-border bg-surface'>
+                    {player.session_players.map((sp: any) => (
+                      <tr key={sp.id} className='hover:bg-background/10 transition-all'>
+                        <td className='p-3 font-semibold text-text'>
+                          <span className='block text-[10px] font-extrabold uppercase text-primary mb-0.5'>
+                            {sp.sessions?.events?.name}
+                          </span>
+                          <span className='text-xs'>{sp.sessions?.name}</span>
+                        </td>
+                        <td className='p-3 text-center text-muted'>
+                          {sp.sessions?.session_date ? new Date(sp.sessions.session_date).toLocaleDateString() : "--"}
+                        </td>
+                        <td className='p-3 text-center'>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${
+                            sp.attendance_status === "present"
+                              ? "bg-green-500/10 text-green-600 border border-green-500/20"
+                              : sp.attendance_status === "absent"
+                                ? "bg-danger/10 text-danger border border-danger/20"
+                                : "bg-orange-500/10 text-orange-600 border border-orange-500/20"
+                          }`}>
+                            {sp.attendance_status}
+                          </span>
+                        </td>
+                        <td className='p-3 text-center font-extrabold text-accent'>
+                          {sp.rank ? `#${sp.rank}` : "--"}
+                        </td>
+                        <td className='p-3 text-center font-extrabold text-primary text-sm'>
+                          {sp.rating ? sp.rating.toFixed(2) : "--"}
+                        </td>
+                        <td className='p-3'>
+                          <div className='flex flex-wrap gap-1'>
+                            {sp.session_player_ratings?.length === 0 ? (
+                              <span className='text-[10px] text-muted italic'>No ratings submitted</span>
+                            ) : (
+                              sp.session_player_ratings.map((r: any) => (
+                                <span 
+                                  key={r.id}
+                                  className='inline-flex items-center gap-0.5 bg-muted/10 border border-border px-1.5 py-0.5 rounded text-[9px] font-bold text-muted'
+                                  title={`Coach: ${r.coach_name}`}
+                                >
+                                  {r.rating} ({r.coach_name})
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className='text-center py-6 text-muted text-xs italic'>
+                No session evaluations or ratings recorded for this player yet.
+              </div>
+            )}
+          </Card>
+
           {/* Coach Notes Timeline Section */}
           <Card className='p-6 bg-surface/50 border-border backdrop-blur-xl space-y-6'>
             <h3 className='text-lg font-bold text-text flex items-center gap-2'>
