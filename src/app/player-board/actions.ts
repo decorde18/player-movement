@@ -160,7 +160,7 @@ export async function getBoardData(sessionId: number, divisionId?: number) {
       last_name: sp.players.last_name,
       tryout_number: sp.tryout_number,
       position: sp.position,
-      rating: sp.rating || 0,
+      rating: sPlayer?.rating || sp.rating || 0,
       gender: sp.players.gender,
       clubName: sp.clubs?.name || "No Club",
       divisionName: sp.season_age_groups?.age_groups?.name || "N/A",
@@ -391,6 +391,10 @@ export async function getPlayerSessionHistory(eventId: number, playerId: number)
   const sessionUser = await getServerAuthSession();
   getScopeFilters(sessionUser); // auth check
 
+  const userRole = sessionUser?.user?.role;
+  const userEmail = sessionUser?.user?.email;
+  const isCoordinator = ["system_admin", "club_admin", "age_group_admin"].includes(userRole || "");
+
   // Find all sessions under the event
   const sessions = await db.sessions.findMany({
     where: { event_id: eventId },
@@ -399,24 +403,60 @@ export async function getPlayerSessionHistory(eventId: number, playerId: number)
 
   const sessionIds = sessions.map(s => s.id);
 
-  // Find player's records in those sessions
-  const sessionRecords = await db.session_players.findMany({
-    where: {
-      player_id: playerId,
-      session_id: { in: sessionIds },
-    },
-  });
+  // Find player's records in those sessions and notes
+  const [sessionRecords, notes] = await Promise.all([
+    db.session_players.findMany({
+      where: {
+        player_id: playerId,
+        session_id: { in: sessionIds },
+      },
+    }),
+    db.coach_notes.findMany({
+      where: {
+        player_id: playerId,
+      },
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { created_at: "desc" },
+    }),
+  ]);
 
   const recordMap = new Map(sessionRecords.map(r => [r.session_id, r]));
 
-  return sessions.map(s => {
-    const record = recordMap.get(s.id);
-    return {
-      sessionId: s.id,
-      sessionName: s.name,
-      sessionDate: s.session_date,
-      attendance: record?.attendance_status || "absent",
-      rank: record?.rank || 0,
-    };
+  const history = sessions
+    .filter((s) => recordMap.has(s.id))
+    .map((s) => {
+      const record = recordMap.get(s.id)!;
+      return {
+        sessionId: s.id,
+        sessionName: s.name,
+        sessionDate: s.session_date,
+        attendance: record.attendance_status || "absent",
+        rank: record.rank || 0,
+        rating: record.rating || 0,
+      };
+    });
+
+  const scopedNotes = notes.filter(n => {
+    if (isCoordinator) return true;
+    return n.users?.email === userEmail;
   });
+
+  return {
+    history,
+    notes: scopedNotes.map(n => ({
+      id: n.id,
+      noteText: n.note_text,
+      createdAt: n.created_at,
+      authorName: n.users?.name || "Evaluator",
+    })),
+  };
 }

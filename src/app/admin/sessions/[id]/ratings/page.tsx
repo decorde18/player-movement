@@ -40,6 +40,7 @@ export default function SessionRatingsPage(props: PageProps) {
 
   // Coordinator toggle to show details of all coaches' ratings
   const [showAllCoaches, setShowAllCoaches] = useState(true);
+  const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>("all");
 
   const loadData = async () => {
     try {
@@ -67,7 +68,6 @@ export default function SessionRatingsPage(props: PageProps) {
   }, [sessionId]);
 
   const handleRatingChange = (spId: number, val: string) => {
-    // Only allow numbers and single decimal point
     if (val === "" || /^[0-9]*\.?[0-9]*$/.test(val)) {
       setRatingInputs((prev) => ({ ...prev, [spId]: val }));
     }
@@ -88,7 +88,6 @@ export default function SessionRatingsPage(props: PageProps) {
       const res = await submitPlayerRating(sessionId, spId, ratingVal);
       if (res.success) {
         toast.success("Rating saved successfully.");
-        // Refresh local data to display new average ratings
         const updated = await getRatingsForSession(sessionId);
         setData(updated);
       } else {
@@ -134,11 +133,26 @@ export default function SessionRatingsPage(props: PageProps) {
   const isCoordinator =
     userScope.role === "admin" || userScope.role === "coordinator" || userScope.isSystemAdmin;
 
-  // Group session players by field
-  // fields: session.session_fields
-  // unassigned: field_id === null
   const fields = session.session_fields || [];
   const players = session.session_players || [];
+
+  // Get all unique represented season age groups
+  const representedAgeGroups = Array.from(
+    new Map(
+      players
+        .flatMap((sp: any) => sp.players?.season_players || [])
+        .map((sp: any) => sp.season_age_groups)
+        .filter(Boolean)
+        .map((sag: any) => [sag.id, sag])
+    ).values()
+  );
+
+  const matchesAgeGroup = (sp: any) => {
+    if (selectedAgeGroup === "all") return true;
+    return sp.players?.season_players?.some(
+      (spRec: any) => spRec.season_age_group_id === Number(selectedAgeGroup)
+    );
+  };
 
   return (
     <div className='space-y-6 w-full flex flex-col animate-fadeIn'>
@@ -190,14 +204,14 @@ export default function SessionRatingsPage(props: PageProps) {
       </div>
 
       {/* Info Stats Ribbon */}
-      <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+      <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
         <Card className='p-4 flex items-center gap-3 bg-surface/50 border-border'>
           <div className='w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0'>
             <UserCheck size={20} />
           </div>
           <div>
             <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Active Evaluator</span>
-            <span className='text-sm font-bold text-text truncate max-w-[180px] block'>{coachName}</span>
+            <span className='text-sm font-bold text-text truncate max-w-[150px] block'>{coachName}</span>
           </div>
         </Card>
 
@@ -208,6 +222,27 @@ export default function SessionRatingsPage(props: PageProps) {
           <div>
             <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Players Present</span>
             <span className='text-sm font-bold text-text block'>{players.length} Players</span>
+          </div>
+        </Card>
+
+        <Card className='p-4 flex items-center gap-3 bg-surface/50 border-border'>
+          <div className='w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0'>
+            <Award size={20} />
+          </div>
+          <div className='flex-1 min-w-0'>
+            <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Age Group Filter</span>
+            <select
+              value={selectedAgeGroup}
+              onChange={(e) => setSelectedAgeGroup(e.target.value)}
+              className='text-xs font-bold bg-background border border-border rounded-lg px-2 py-1.5 mt-1 text-text focus:outline-none cursor-pointer w-full'
+            >
+              <option value='all'>All Age Groups</option>
+              {representedAgeGroups.map((sag: any) => (
+                <option key={sag.id} value={sag.id.toString()}>
+                  {sag.age_groups?.name} ({sag.gender})
+                </option>
+              ))}
+            </select>
           </div>
         </Card>
 
@@ -239,7 +274,7 @@ export default function SessionRatingsPage(props: PageProps) {
       <div className='space-y-6'>
         {/* Render Field columns inside nice grids */}
         {[...fields, { id: null, name: "Unassigned" }].map((field: any) => {
-          const fieldPlayers = players.filter((p: any) => p.field_id === field.id);
+          const fieldPlayers = players.filter((p: any) => p.field_id === field.id && matchesAgeGroup(p));
           if (fieldPlayers.length === 0 && field.id === null) return null; // Hide empty unassigned column
 
           return (

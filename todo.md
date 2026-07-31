@@ -81,16 +81,20 @@ Phase 5 — Ratings
   • [x] we need the ability to select all that are filtered and move them as bulk
   • [x] when assigning ratings, we need the same ability to bulk assigning (ie all players on field 1 get a 1, so on but the coach will determine the numbers)
   
-  The ratings page should filter by age group
+  • [x] The ratings page should filter by age group
   
-Player card should only have the sessions that player was registered to.
-This card should also have notes from coaches (each coach will see their own, age group will see all)
+  • [x] Player card should only have the sessions that player was registered to.
+  • [x] This card should also have notes from coaches (each coach will see their own, age group will see all)
 
 Phase 6 — Rankings
+  we need to rethink this entirely, Gold Tier, Competitive Tier, Developmental Tier, are arbitrary and too rigid. Also based on 10 being high, what if we want 1 being high?
+  How do you unlock?
   • [ ] Ranking computation: group players by rating tier, auto-rank within tier → event_player_rankings
   • [ ] Coordinator "finalize" action: locks ranking, sets is_finalized / finalized_by / finalized_at
   • [ ] Coordinator override UI: manually adjust rank within a tier before finalizing
   • [ ] Event summary view: rating + rank per player, exportable/printable list for placement decisions
+  when a coach tries to rank a player when the sort is not ranking, it changes to ranking and then they can move the player
+  Are you sure you want to finalize event placement rankings? This will lock all rankings and allow placing players onto teams. should be our modal popup
 Phase 7 — Permanent Team Placement
   • [ ] "Place on team" action from the finalized event ranking screen → assigns season_players.season_team_id
   • [ ] Enforce one active permanent team per player (replace prior assignment if moved)

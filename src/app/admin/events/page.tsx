@@ -27,6 +27,7 @@ import {
   Filter,
   CheckSquare,
   Square,
+  Award
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -609,9 +610,17 @@ export default function EventsAdminPage() {
                           </div>
                         )}
 
-                        <span className='block text-[0.65rem] text-muted mt-1'>
-                          Contains {e.sessions.length} evaluation session{e.sessions.length !== 1 ? "s" : ""}
-                        </span>
+                        <div className='flex items-center justify-between mt-2 pt-2 border-t border-border/40'>
+                          <span className='text-[0.65rem] text-muted'>
+                            {e.sessions.length} evaluation session{e.sessions.length !== 1 ? "s" : ""}
+                          </span>
+                          <Link href={`/admin/events/${e.id}/rankings`} onClick={(evt) => evt.stopPropagation()}>
+                            <span className='text-[10px] font-extrabold bg-primary/10 text-primary px-2 py-1 rounded-lg border border-primary/20 hover:bg-primary hover:text-white transition-all flex items-center gap-1 cursor-pointer'>
+                              <Award size={10} />
+                              Rankings
+                            </span>
+                          </Link>
+                        </div>
 
                         <button
                           onClick={(evt) => {

@@ -86,6 +86,7 @@ export default function PlayerBoardPage() {
   // Notes Modal Popup State
   const [notePlayer, setNotePlayer] = useState<any | null>(null);
   const [noteHistory, setNoteHistory] = useState<any[]>([]);
+  const [notePlayerNotes, setNotePlayerNotes] = useState<any[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
 
   // Custom Leave Confirmation Dialog State
@@ -446,8 +447,9 @@ export default function PlayerBoardPage() {
     setNotePlayer(player);
     setLoadingNotes(true);
     try {
-      const history = await getPlayerSessionHistory(Number(selectedEvent), player.id);
-      setNoteHistory(history);
+      const res = await getPlayerSessionHistory(Number(selectedEvent), player.id);
+      setNoteHistory(res.history);
+      setNotePlayerNotes(res.notes);
     } catch (err) {
       toast.error("Failed to load player session history.");
     } finally {
@@ -1118,6 +1120,7 @@ export default function PlayerBoardPage() {
                     <th className='p-3.5'>Session Name</th>
                     <th className='p-3.5'>Date</th>
                     <th className='p-3.5 text-center'>Attendance</th>
+                    <th className='p-3.5 text-center'>Session Rating</th>
                     <th className='p-3.5 text-center'>Session Rank</th>
                   </tr>
                 </thead>
@@ -1137,6 +1140,9 @@ export default function PlayerBoardPage() {
                           {h.attendance}
                         </span>
                       </td>
+                      <td className='p-3.5 text-center font-extrabold text-accent'>
+                        {h.rating ? `${h.rating.toFixed(1)} / 10` : "No Rating"}
+                      </td>
                       <td className='p-3.5 text-center font-bold text-primary'>
                         {h.rank ? `#${h.rank}` : "Unranked"}
                       </td>
@@ -1144,6 +1150,30 @@ export default function PlayerBoardPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Scoped Evaluator Comments Timeline */}
+            <div className='space-y-2.5 mt-4 pt-2 border-t border-border/60'>
+              <h4 className='text-xs font-bold text-text-label uppercase tracking-wide'>
+                Evaluator Comments & Notes Feed
+              </h4>
+              {notePlayerNotes.length === 0 ? (
+                <div className='text-center py-4 text-xs text-muted/50 italic'>
+                  No comments or notes recorded for this player.
+                </div>
+              ) : (
+                <div className='space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar'>
+                  {notePlayerNotes.map((n) => (
+                    <div key={n.id} className='bg-surface border border-border p-3 rounded-xl space-y-1 shadow-xs'>
+                      <div className='flex items-center justify-between text-[10px] font-bold text-muted'>
+                        <span>{n.authorName}</span>
+                        <span>{new Date(n.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className='text-xs text-text font-semibold leading-relaxed'>{n.noteText}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

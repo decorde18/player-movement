@@ -91,31 +91,36 @@ model event_divisions {
 }
 
 model events {
-  id              Int               @id @default(autoincrement())
-  season_id       Int
-  name            String            @db.VarChar(255)
-  event_type      events_event_type
-  created_at      DateTime?         @default(now()) @db.Timestamp(0)
-  coach_notes     coach_notes[]
-  event_divisions event_divisions[]
-  event_players   event_players[]
-  seasons         seasons           @relation(fields: [season_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "events_ibfk_1")
-  sessions        sessions[]
+  id                    Int                     @id @default(autoincrement())
+  season_id             Int
+  name                  String                  @db.VarChar(255)
+  event_type            events_event_type
+  created_at            DateTime?               @default(now()) @db.Timestamp(0)
+  is_finalized          Boolean?                @default(false)
+  finalized_by          String?                 @db.VarChar(255)
+  finalized_at          DateTime?               @db.Timestamp(0)
+  coach_notes           coach_notes[]
+  event_divisions       event_divisions[]
+  event_players         event_players[]
+  event_player_rankings event_player_rankings[]
+  seasons               seasons                 @relation(fields: [season_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "events_ibfk_1")
+  sessions              sessions[]
 
   @@index([season_id], map: "season_id")
 }
 
 model players {
-  id              Int               @id @default(autoincrement())
-  first_name      String            @db.VarChar(100)
-  last_name       String            @db.VarChar(100)
-  date_of_birth   DateTime?         @db.Date
-  gender          String?           @db.VarChar(20)
-  created_at      DateTime?         @default(now()) @db.Timestamp(0)
-  coach_notes     coach_notes[]
-  event_players   event_players[]
-  season_players  season_players[]
-  session_players session_players[]
+  id                    Int                     @id @default(autoincrement())
+  first_name            String                  @db.VarChar(100)
+  last_name             String                  @db.VarChar(100)
+  date_of_birth         DateTime?               @db.Date
+  gender                String?                 @db.VarChar(20)
+  created_at            DateTime?               @default(now()) @db.Timestamp(0)
+  coach_notes           coach_notes[]
+  event_players         event_players[]
+  season_players        season_players[]
+  session_players       session_players[]
+  event_player_rankings event_player_rankings[]
 }
 
 model season_age_groups {
@@ -306,3 +311,23 @@ enum users_role {
   age_group_admin
   coach
 }
+
+model event_player_rankings {
+  id         Int       @id @default(autoincrement())
+  event_id   Int
+  player_id  Int
+  coach_id   String    @db.VarChar(255)
+  rank       Int
+  tier       String?   @db.VarChar(50)
+  rating     Float?    @default(0)
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+  updated_at DateTime? @default(now()) @db.Timestamp(0)
+
+  events     events    @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_epr_event")
+  players    players   @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_epr_player")
+
+  @@unique([event_id, player_id, coach_id], map: "event_player_coach_rank")
+  @@index([player_id], map: "player_id")
+  @@index([event_id], map: "event_id")
+}
+

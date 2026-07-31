@@ -21,7 +21,19 @@ export async function getRatingsForSession(sessionId: number) {
           attendance_status: "present",
         },
         include: {
-          players: true,
+          players: {
+            include: {
+              season_players: {
+                include: {
+                  season_age_groups: {
+                    include: {
+                      age_groups: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           session_player_ratings: true,
         },
       },
