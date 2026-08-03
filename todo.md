@@ -127,4 +127,14 @@ Verify all tables use our component. Make sure our component allows column sorti
 When creating teams, we need to keep a hierarchy not just organized alphabetically. 
 We need a way to actually send invitations. Probably need a parent table linked to players and the email, phone for the parents- on import, we will need to import those as well.
 Staff registry needs to allow for multiple age groups (and teams) per coach when adding 
+filter assigned team by assigned age groups
+on logged in user, the active season should only show the seasons they were active for. Similarly for active division. they should only have access to their own sessions and age groups, teams.
+on team invitation page, we want to see more players so let's shrink the informational cards at the top. Make the header shorter as well
+
+session roster should have its own button on sidebar so all can enter attendance
+
+ratings entry should be 
+we need a dashboard
+
+
 

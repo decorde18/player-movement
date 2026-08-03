@@ -125,7 +125,60 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
+import { cookies } from "next/headers";
+
 export async function getServerAuthSession(): Promise<Session | null> {
+  // 1. Check for User Impersonation cookie in development / admin mode
+  try {
+    const cookieStore = await cookies();
+    const impersonateUserId = cookieStore.get("impersonateUserId")?.value;
+
+    if (impersonateUserId) {
+      const impId = parseInt(impersonateUserId, 10);
+      if (!isNaN(impId)) {
+        const impUser = await db.user.findUnique({
+          where: { id: impId },
+        });
+
+        if (impUser) {
+          const isSystemAdmin = impUser.role === "system_admin";
+          const isClubAdmin = impUser.role === "club_admin";
+          const isAgeGroupAdmin = impUser.role === "age_group_admin";
+          const isCoach = impUser.role === "coach";
+
+          return {
+            user: {
+              id: impUser.id.toString(),
+              name: impUser.name,
+              email: impUser.email,
+              role: impUser.role,
+              clubId: impUser.club_id,
+              assigned_team_id: impUser.assigned_team_id,
+              assigned_age_group_id: impUser.assigned_age_group_id,
+              isImpersonating: true,
+              roles: {
+                isSystemAdmin,
+                isClubAdmin,
+                isAgeGroupAdmin,
+                isCoach,
+                ageGroupIds: impUser.assigned_age_group_id
+                  ? [impUser.assigned_age_group_id]
+                  : [],
+                coachTeamIds: impUser.assigned_team_id
+                  ? [impUser.assigned_team_id]
+                  : [],
+                clubAdminTeamIds: impUser.club_id ? [impUser.club_id] : [],
+              },
+            },
+            expires: new Date(Date.now() + 3600000).toISOString(),
+          } as any;
+        }
+      }
+    }
+  } catch {
+    // Cookie store context not available (e.g. static generation)
+  }
+
   const devBypass =
     process.env.NODE_ENV === "development" &&
     (process.env.AUTH_BYPASS_ENABLED === "true" ||
@@ -146,7 +199,6 @@ export async function getServerAuthSession(): Promise<Session | null> {
           isCoach: false,
           ageGroupIds: [],
           coachTeamIds: [],
-
           clubAdminTeamIds: [],
         },
       },

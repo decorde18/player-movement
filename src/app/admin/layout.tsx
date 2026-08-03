@@ -11,6 +11,8 @@ import { getActiveClubId } from "@/lib/actions/clubs";
 import { getActiveSeasonId } from "@/lib/actions/season-actions";
 import { getActiveAgeGroupId } from "@/lib/actions/active-age-group";
 
+import UserSwitcherBar from "@/components/layout/UserSwitcherBar";
+
 export default async function MainAppLayout({ children }: { children: ReactNode }) {
   const session = await getServerAuthSession();
   const user = session?.user;
@@ -64,6 +66,7 @@ export default async function MainAppLayout({ children }: { children: ReactNode 
           />
         </Suspense>
         <div className='main-content'>
+          <UserSwitcherBar currentUser={user} />
           <Suspense fallback={<HeaderSkeleton />}>
             <Header user={user as any} />
           </Suspense>
