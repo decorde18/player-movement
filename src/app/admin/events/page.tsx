@@ -122,6 +122,9 @@ export default function EventsAdminPage() {
     });
   };
 
+  const [eventScopeType, setEventScopeType] = useState<"division" | "team">("division");
+  const [selectedTeamIdForEvent, setSelectedTeamIdForEvent] = useState<string>("");
+
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSeasonId) return;
@@ -129,8 +132,14 @@ export default function EventsAdminPage() {
       toast.error("Event Name is required.");
       return;
     }
-    if (selectedDivisionIds.length === 0) {
+    
+    if (eventScopeType === "division" && selectedDivisionIds.length === 0) {
       toast.error("Select at least one age group for this event.");
+      return;
+    }
+
+    if (eventScopeType === "team" && !selectedTeamIdForEvent) {
+      toast.error("Select a team for this team-level ranking event.");
       return;
     }
 
@@ -139,14 +148,17 @@ export default function EventsAdminPage() {
         season_id: selectedSeasonId,
         name: eventName,
         event_type: eventType,
-        season_age_group_ids: selectedDivisionIds,
+        season_age_group_ids: eventScopeType === "division" ? selectedDivisionIds : undefined,
+        season_team_id: eventScopeType === "team" ? Number(selectedTeamIdForEvent) : undefined,
       });
 
       if (res.success) {
-        toast.success(`Event "${eventName}" created with ${selectedDivisionIds.length} division(s). All eligible players added as unavailable.`);
+        toast.success(`Event "${eventName}" created successfully.`);
         setEventName("");
         setEventType("tryout");
         setSelectedDivisionIds([]);
+        setSelectedTeamIdForEvent("");
+        setEventScopeType("division");
         setShowEventForm(false);
         // Reload and set active
         const reloaded = await getEventsDashboardData();
@@ -270,7 +282,7 @@ export default function EventsAdminPage() {
 
   return (
     <div className='min-h-screen bg-background text-text p-4 md:p-8 animate-fadeIn'>
-      <div className='max-w-7xl mx-auto space-y-6'>
+      <div className='w-full max-w-full min-w-0 space-y-6'>
         {/* Top Header Panel */}
         <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface/80 border border-border p-6 rounded-2xl shadow-sm backdrop-blur-md'>
           <div>
@@ -485,55 +497,103 @@ export default function EventsAdminPage() {
                         </div>
                       </div>
 
-                      {/* Age Group Selection Checkboxes */}
+                      {/* Event Scope Type Toggle */}
                       <div>
-                        <label className='block text-[0.65rem] font-bold text-text-label mb-1.5'>
-                          Age Groups *
-                          <span className='text-muted font-normal ml-1'>(all players will be added as unavailable)</span>
+                        <label className='block text-[0.65rem] font-bold text-muted uppercase mb-1'>
+                          Target Roster Scope
                         </label>
-                        {seasonDivisions.length === 0 ? (
-                          <div className='text-[0.6rem] text-muted italic p-2 border border-dashed border-border rounded-lg'>
-                            No divisions configured for this season. Go to Seasons to add age groups first.
-                          </div>
-                        ) : (
-                          <div className='space-y-1 max-h-36 overflow-y-auto border border-border rounded-lg p-2 bg-surface'>
-                            {seasonDivisions.map((div: any) => {
-                              const isSelected = selectedDivisionIds.includes(div.id);
-                              const genderColor =
-                                div.gender === "Boys"
-                                  ? "text-blue-500"
-                                  : div.gender === "Girls"
-                                    ? "text-pink-500"
-                                    : "text-emerald-500";
-                              return (
-                                <button
-                                  key={div.id}
-                                  type='button'
-                                  onClick={() => toggleDivision(div.id)}
-                                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[0.65rem] font-semibold transition-all cursor-pointer ${
-                                    isSelected
-                                      ? "bg-primary/10 text-primary border border-primary/30"
-                                      : "hover:bg-background text-text border border-transparent"
-                                  }`}
-                                >
-                                  {isSelected ? (
-                                    <CheckSquare size={14} className='text-primary flex-shrink-0' />
-                                  ) : (
-                                    <Square size={14} className='text-muted/40 flex-shrink-0' />
-                                  )}
-                                  <span>{div.age_groups?.name || div.name}</span>
-                                  <span className={`${genderColor} text-[0.55rem]`}>({div.gender})</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {selectedDivisionIds.length > 0 && (
-                          <p className='text-[0.55rem] text-muted mt-1'>
-                            {selectedDivisionIds.length} division(s) selected
-                          </p>
-                        )}
+                        <div className='grid grid-cols-2 gap-2'>
+                          <button
+                            type='button'
+                            onClick={() => setEventScopeType("division")}
+                            className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                              eventScopeType === "division"
+                                ? "bg-primary/10 border-primary text-primary"
+                                : "bg-background border-border text-muted hover:text-text"
+                            }`}
+                          >
+                            Age Group Division
+                          </button>
+                          <button
+                            type='button'
+                            onClick={() => setEventScopeType("team")}
+                            className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                              eventScopeType === "team"
+                                ? "bg-blue-500/10 border-blue-500 text-blue-600"
+                                : "bg-background border-border text-muted hover:text-text"
+                            }`}
+                          >
+                            Specific Team Only
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Team Selector if Scope is Team */}
+                      {eventScopeType === "team" ? (
+                        <div>
+                          <label className='block text-[0.65rem] font-bold text-muted uppercase mb-1'>
+                            Select Team Roster
+                          </label>
+                          <select
+                            value={selectedTeamIdForEvent}
+                            onChange={(e) => setSelectedTeamIdForEvent(e.target.value)}
+                            className='w-full text-xs font-bold bg-background border border-border rounded-lg p-2 text-text focus:outline-none cursor-pointer'
+                          >
+                            <option value=''>-- Select Team --</option>
+                            {(data.seasonTeams || []).map((st: any) => (
+                              <option key={st.id} value={st.id.toString()}>
+                                {st.teams?.name} ({st.season_age_groups?.age_groups?.name || ""})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className='block text-[0.65rem] font-bold text-muted uppercase mb-1'>
+                            Select Age Group Divisions
+                          </label>
+                          {seasonDivisions.length === 0 ? (
+                            <p className='text-xs text-muted italic'>No divisions configured for this season.</p>
+                          ) : (
+                            <div className='grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto p-1 bg-background rounded-lg border border-border'>
+                              {seasonDivisions.map((div: any) => {
+                                const isSelected = selectedDivisionIds.includes(div.id);
+                                const genderColor =
+                                  div.gender === "Boys"
+                                    ? "text-blue-500"
+                                    : div.gender === "Girls"
+                                      ? "text-pink-500"
+                                      : "text-emerald-500";
+                                return (
+                                  <button
+                                    key={div.id}
+                                    type='button'
+                                    onClick={() => toggleDivision(div.id)}
+                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[0.65rem] font-semibold transition-all cursor-pointer ${
+                                      isSelected
+                                        ? "bg-primary/10 text-primary border border-primary/30"
+                                        : "hover:bg-background text-text border border-transparent"
+                                    }`}
+                                  >
+                                    {isSelected ? (
+                                      <CheckSquare size={14} className='text-primary flex-shrink-0' />
+                                    ) : (
+                                      <Square size={14} className='text-muted/40 flex-shrink-0' />
+                                    )}
+                                    <span>{div.age_groups?.name || div.name}</span>
+                                    <span className={`${genderColor} text-[0.55rem]`}>({div.gender})</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {selectedDivisionIds.length > 0 && (
+                            <p className='text-[0.55rem] text-muted mt-1'>
+                              {selectedDivisionIds.length} division(s) selected
+                            </p>
+                          )}
+                        </div>
+                      )}
 
                       <div className='flex gap-2 pt-1.5 justify-end'>
                         <Button

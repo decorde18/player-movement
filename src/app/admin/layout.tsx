@@ -67,7 +67,7 @@ export default async function MainAppLayout({ children }: { children: ReactNode 
           <Suspense fallback={<HeaderSkeleton />}>
             <Header user={user as any} />
           </Suspense>
-          <div className='p-6 max-w-6xl mx-auto'>{children}</div>
+          <div className='p-4 md:p-6 w-full max-w-full min-w-0 flex-1 flex flex-col min-h-0 overflow-hidden'>{children}</div>
         </div>
       </div>
       {/* <Footer /> */}

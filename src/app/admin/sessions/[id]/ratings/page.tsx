@@ -18,7 +18,10 @@ import { toast } from "sonner";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import Input from "@/components/ui/Input";
+import FilterBar from "@/components/ui/FilterBar";
+import SortControl from "@/components/ui/SortControl";
+import { smartCompare } from "@/lib/utils/smartSort";
+import { STANDARD_POSITIONS } from "@/lib/utils/positionPresets";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -40,7 +43,50 @@ export default function SessionRatingsPage(props: PageProps) {
 
   // Coordinator toggle to show details of all coaches' ratings
   const [showAllCoaches, setShowAllCoaches] = useState(true);
+
+  // Filter & Search states
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [ratingStatusFilter, setRatingStatusFilter] = useState<string>("all");
+  const [positionFilter, setPositionFilter] = useState<string>("all");
+  const [ratingRangeFilter, setRatingRangeFilter] = useState<string>("all");
+
+  // Sort states
+  const [sortKey, setSortKey] = useState<string>("tryout");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  // Dynamically compute rating range options (must be top-level hook before early return)
+  const ratingRangeFilterOptions = React.useMemo(() => {
+    const activeRatingsList = Object.keys(ratingInputs).map(
+      (spId) => parseFloat(ratingInputs[Number(spId)] || "0")
+    );
+    const validRatings = activeRatingsList.filter((r: number) => r > 0);
+    if (validRatings.length === 0) {
+      return [
+        { value: "all", label: "All Ratings" },
+        { value: "unrated", label: "Unrated Only" },
+      ];
+    }
+
+    const uniqueScores = Array.from<number>(
+      new Set(validRatings.map((r: number) => Math.floor(r)))
+    ).sort((a: number, b: number) => b - a);
+
+    const options = [
+      { value: "all", label: "All Ratings" },
+      { value: "unrated", label: "Unrated Only" },
+    ];
+
+    uniqueScores.forEach((score: number) => {
+      const count = validRatings.filter((r: number) => Math.floor(r) === score).length;
+      options.push({
+        value: `score_${score}`,
+        label: `Score ${score}.0 - ${score}.9 (${count})`,
+      });
+    });
+
+    return options;
+  }, [ratingInputs]);
 
   const loadData = async () => {
     try {
@@ -49,8 +95,8 @@ export default function SessionRatingsPage(props: PageProps) {
 
       // Pre-fill local rating input state with active coach's existing ratings
       const inputs: Record<number, string> = {};
-      res.session.session_players.forEach((sp: any) => {
-        const coachRating = sp.session_player_ratings.find(
+      (res.session?.session_players || []).forEach((sp: any) => {
+        const coachRating = sp.session_player_ratings?.find(
           (r: any) => r.coach_id === res.coachEmail
         );
         inputs[sp.id] = coachRating ? coachRating.rating.toString() : "";
@@ -147,135 +193,277 @@ export default function SessionRatingsPage(props: PageProps) {
     ).values()
   );
 
-  const matchesAgeGroup = (sp: any) => {
-    if (selectedAgeGroup === "all") return true;
-    return sp.players?.season_players?.some(
-      (spRec: any) => spRec.season_age_group_id === Number(selectedAgeGroup)
-    );
+  // Filter & Search predicate
+  const matchesFilters = (sp: any) => {
+    // Age Group filter
+    if (selectedAgeGroup !== "all") {
+      const isMatch = sp.players?.season_players?.some(
+        (spRec: any) => spRec.season_age_group_id === Number(selectedAgeGroup)
+      );
+      if (!isMatch) return false;
+    }
+
+    // Position filter
+    if (positionFilter !== "all") {
+      const posVal = (sp.players?.position || "").trim();
+      if (posVal !== positionFilter && !posVal.startsWith(`${positionFilter} `) && !posVal.startsWith(`${positionFilter}-`)) {
+        return false;
+      }
+    }
+
+    // Search query filter (Name or Tryout #)
+    if (searchQuery.trim() !== "") {
+      const q = searchQuery.toLowerCase().trim();
+      const fullName = `${sp.players.first_name} ${sp.players.last_name}`.toLowerCase();
+      const tryout = (sp.players.tryout_number || "").toString().toLowerCase();
+      if (!fullName.includes(q) && !tryout.includes(q)) {
+        return false;
+      }
+    }
+
+    // Rating Status filter
+    if (ratingStatusFilter === "rated") {
+      const hasRating = ratingInputs[sp.id] && ratingInputs[sp.id].trim() !== "";
+      if (!hasRating) return false;
+    } else if (ratingStatusFilter === "unrated") {
+      const hasRating = ratingInputs[sp.id] && ratingInputs[sp.id].trim() !== "";
+      if (hasRating) return false;
+    }
+
+    // Rating Range filter (dynamically matched to actual session data)
+    if (ratingRangeFilter === "unrated") {
+      const ratVal = parseFloat(ratingInputs[sp.id] || "0") || sp.rating || 0;
+      if (ratVal > 0) return false;
+    } else if (ratingRangeFilter.startsWith("score_")) {
+      const targetScore = parseInt(ratingRangeFilter.replace("score_", ""), 10);
+      const ratVal = parseFloat(ratingInputs[sp.id] || "0") || sp.rating || 0;
+      if (Math.floor(ratVal) !== targetScore) return false;
+    }
+
+    return true;
+  };
+
+  // Sorting helper
+  const sortPlayersList = (list: any[]) => {
+    return [...list].sort((a: any, b: any) => {
+      if (sortKey === "name") {
+        const nameA = `${a.players.last_name} ${a.players.first_name}`.toLowerCase();
+        const nameB = `${b.players.last_name} ${b.players.first_name}`.toLowerCase();
+        return sortDirection === "asc" ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+      }
+      if (sortKey === "tryout") {
+        return smartCompare(a.players.tryout_number, b.players.tryout_number, sortDirection);
+      }
+      if (sortKey === "rating") {
+        const valA = parseFloat(ratingInputs[a.id] || "0") || a.rating || 0;
+        const valB = parseFloat(ratingInputs[b.id] || "0") || b.rating || 0;
+        return sortDirection === "asc" ? valA - valB : valB - valA;
+      }
+      if (sortKey === "position") {
+        const posA = a.players.position || "";
+        const posB = b.players.position || "";
+        return sortDirection === "asc" ? posA.localeCompare(posB) : posB.localeCompare(posA);
+      }
+      return 0;
+    });
+  };
+
+  const sortOptions = [
+    { value: "tryout", label: "Tryout #" },
+    { value: "name", label: "Player Name" },
+    { value: "rating", label: "Rating" },
+    { value: "position", label: "Position" },
+  ];
+
+  const ageGroupFilterOptions = [
+    { value: "all", label: "All Age Groups" },
+    ...representedAgeGroups.map((sag: any) => ({
+      value: sag.id.toString(),
+      label: `${sag.age_groups?.name} (${sag.gender})`,
+    })),
+  ];
+
+  const positionFilterOptions = [
+    { value: "all", label: "All Positions" },
+    ...STANDARD_POSITIONS.map(p => ({ value: p, label: `Pos: ${p}` })),
+  ];
+
+  const ratingStatusOptions = [
+    { value: "all", label: "All Rating Statuses" },
+    { value: "rated", label: "Rated Only" },
+    { value: "unrated", label: "Unrated Only" },
+  ];
+
+  const filterGroups = [
+    {
+      id: "ageGroup",
+      label: "Age Group",
+      value: selectedAgeGroup,
+      options: ageGroupFilterOptions,
+      onChange: setSelectedAgeGroup,
+    },
+    {
+      id: "position",
+      label: "Position",
+      value: positionFilter,
+      options: positionFilterOptions,
+      onChange: setPositionFilter,
+    },
+    {
+      id: "ratingStatus",
+      label: "Status",
+      value: ratingStatusFilter,
+      options: ratingStatusOptions,
+      onChange: setRatingStatusFilter,
+    },
+    {
+      id: "ratingRange",
+      label: "Rating Range",
+      value: ratingRangeFilter,
+      options: ratingRangeFilterOptions,
+      onChange: setRatingRangeFilter,
+    },
+  ];
+
+  const handleResetFilters = () => {
+    setSelectedAgeGroup("all");
+    setPositionFilter("all");
+    setSearchQuery("");
+    setRatingStatusFilter("all");
+    setRatingRangeFilter("all");
+    setSortKey("tryout");
+    setSortDirection("asc");
   };
 
   return (
-    <div className='space-y-6 w-full flex flex-col animate-fadeIn'>
+    <div className='w-full flex-1 flex flex-col min-h-0 animate-fadeIn space-y-4 pb-2'>
       
-      {/* Top Breadcrumb Bar */}
-      <div className='flex items-center justify-between bg-surface/60 border border-border p-4 rounded-2xl shadow-sm backdrop-blur-md'>
-        <div className='flex items-center gap-3'>
-          <Link
-            href={`/admin/events`}
-            className='p-2 rounded-lg border border-border bg-background text-muted hover:text-text transition-all cursor-pointer'
-          >
-            <ArrowLeft size={16} />
-          </Link>
-          <div>
-            <div className='flex items-center gap-2'>
-              <span className='text-[10px] font-extrabold uppercase bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20'>
-                {session.events.name}
-              </span>
-              <ChevronRight size={12} className='text-muted' />
-              <span className='text-xs font-bold text-muted'>
-                {new Date(session.session_date).toLocaleDateString()}
-              </span>
+      {/* Stationary Top Controls Group */}
+      <div className='shrink-0 space-y-4'>
+        {/* Top Breadcrumb Bar */}
+        <div className='flex items-center justify-between bg-surface/60 border border-border p-4 rounded-2xl shadow-sm backdrop-blur-md flex-wrap gap-3'>
+          <div className='flex items-center gap-3'>
+            <Link
+              href={`/admin/events`}
+              className='p-2 rounded-lg border border-border bg-background text-muted hover:text-text transition-all cursor-pointer'
+            >
+              <ArrowLeft size={16} />
+            </Link>
+            <div>
+              <div className='flex items-center gap-2'>
+                <span className='text-[10px] font-extrabold uppercase bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20'>
+                  {session.events.name}
+                </span>
+                <ChevronRight size={12} className='text-muted' />
+                <span className='text-xs font-bold text-muted'>
+                  {new Date(session.session_date).toLocaleDateString()}
+                </span>
+              </div>
+              <h1 className='text-xl font-extrabold text-text mt-0.5'>
+                {session.name} — Evaluation Ratings
+              </h1>
             </div>
-            <h1 className='text-xl font-extrabold text-text mt-0.5'>
-              {session.name} — Evaluation Ratings
-            </h1>
+          </div>
+
+          <div className='flex items-center gap-2.5 flex-wrap'>
+            {isCoordinator && (
+              <Button
+                onClick={handleCarryForward}
+                variant='primary'
+                size='sm'
+                disabled={isPending}
+                className='flex items-center gap-1.5 font-bold text-xs bg-accent hover:bg-accent-hover text-white'
+              >
+                <TrendingUp size={14} />
+                <span>Carry Forward Averages to Registry</span>
+              </Button>
+            )}
+            <Link href={`/admin/sessions/${sessionId}`}>
+              <Button variant='outline' size='sm' className='font-bold text-xs'>
+                <Users size={14} className='mr-1' /> Roster Management
+              </Button>
+            </Link>
           </div>
         </div>
 
-        <div className='flex items-center gap-2.5'>
-          {isCoordinator && (
-            <Button
-              onClick={handleCarryForward}
-              variant='primary'
-              size='sm'
-              disabled={isPending}
-              className='flex items-center gap-1.5 font-bold text-xs bg-accent hover:bg-accent-hover text-white'
-            >
-              <TrendingUp size={14} />
-              <span>Carry Forward Averages to Registry</span>
-            </Button>
-          )}
-          <Link href={`/admin/sessions/${sessionId}`}>
-            <Button variant='outline' size='sm' className='font-bold text-xs'>
-              <Users size={14} className='mr-1' /> Roster Management
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Info Stats Ribbon */}
-      <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
-        <Card className='p-4 flex items-center gap-3 bg-surface/50 border-border'>
-          <div className='w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0'>
-            <UserCheck size={20} />
-          </div>
-          <div>
-            <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Active Evaluator</span>
-            <span className='text-sm font-bold text-text truncate max-w-[150px] block'>{coachName}</span>
-          </div>
-        </Card>
-
-        <Card className='p-4 flex items-center gap-3 bg-surface/50 border-border'>
-          <div className='w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0'>
-            <Award size={20} />
-          </div>
-          <div>
-            <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Players Present</span>
-            <span className='text-sm font-bold text-text block'>{players.length} Players</span>
-          </div>
-        </Card>
-
-        <Card className='p-4 flex items-center gap-3 bg-surface/50 border-border'>
-          <div className='w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0'>
-            <Award size={20} />
-          </div>
-          <div className='flex-1 min-w-0'>
-            <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Age Group Filter</span>
-            <select
-              value={selectedAgeGroup}
-              onChange={(e) => setSelectedAgeGroup(e.target.value)}
-              className='text-xs font-bold bg-background border border-border rounded-lg px-2 py-1.5 mt-1 text-text focus:outline-none cursor-pointer w-full'
-            >
-              <option value='all'>All Age Groups</option>
-              {representedAgeGroups.map((sag: any) => (
-                <option key={sag.id} value={sag.id.toString()}>
-                  {sag.age_groups?.name} ({sag.gender})
-                </option>
-              ))}
-            </select>
-          </div>
-        </Card>
-
-        {isCoordinator && (
-          <Card className='p-4 flex items-center justify-between bg-surface/50 border-border'>
-            <div className='flex items-center gap-3'>
-              <div className='w-10 h-10 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0'>
-                <ShieldCheck size={20} />
-              </div>
-              <div>
-                <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Coordinator View</span>
-                <span className='text-xs font-bold text-text block'>Detailed Multi-Coach View</span>
-              </div>
+        {/* Info Stats Ribbon */}
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+          <Card className='p-3 flex items-center gap-3 bg-surface/50 border-border'>
+            <div className='w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0'>
+              <UserCheck size={18} />
             </div>
-            <label className='relative inline-flex items-center cursor-pointer'>
-              <input
-                type='checkbox'
-                className='sr-only peer'
-                checked={showAllCoaches}
-                onChange={() => setShowAllCoaches(!showAllCoaches)}
-              />
-              <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-            </label>
+            <div>
+              <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Active Evaluator</span>
+              <span className='text-xs font-bold text-text truncate max-w-[180px] block'>{coachName}</span>
+            </div>
           </Card>
-        )}
+
+          <Card className='p-3 flex items-center gap-3 bg-surface/50 border-border'>
+            <div className='w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0'>
+              <Award size={18} />
+            </div>
+            <div>
+              <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Players Present</span>
+              <span className='text-xs font-bold text-text block'>{players.length} Players</span>
+            </div>
+          </Card>
+
+          {isCoordinator && (
+            <Card className='p-3 flex items-center justify-between bg-surface/50 border-border'>
+              <div className='flex items-center gap-3'>
+                <div className='w-9 h-9 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0'>
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <span className='text-[10px] font-extrabold text-muted uppercase tracking-wider block'>Coordinator View</span>
+                  <span className='text-xs font-bold text-text block'>Detailed Multi-Coach View</span>
+                </div>
+              </div>
+              <label className='relative inline-flex items-center cursor-pointer'>
+                <input
+                  type='checkbox'
+                  className='sr-only peer'
+                  checked={showAllCoaches}
+                  onChange={() => setShowAllCoaches(!showAllCoaches)}
+                />
+                <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+              </label>
+            </Card>
+          )}
+        </div>
+
+        {/* Reusable Filter & Sort Control Toolbar */}
+        <div className='flex flex-wrap items-center justify-between gap-4'>
+          <FilterBar
+            filters={filterGroups}
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder='Search player name or tryout #...'
+            onResetFilters={handleResetFilters}
+            className='flex-1 min-w-[280px]'
+          />
+
+          <SortControl
+            options={sortOptions}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onSortChange={(key, dir) => {
+              setSortKey(key);
+              setSortDirection(dir);
+            }}
+            label='Sort Roster'
+            size='sm'
+          />
+        </div>
       </div>
 
-      {/* Main Fields Grid */}
-      <div className='space-y-6'>
-        {/* Render Field columns inside nice grids */}
+      {/* Scrollable Fields & Roster Ratings Area */}
+      <div className='flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-6 pr-1'>
         {[...fields, { id: null, name: "Unassigned" }].map((field: any) => {
-          const fieldPlayers = players.filter((p: any) => p.field_id === field.id && matchesAgeGroup(p));
-          if (fieldPlayers.length === 0 && field.id === null) return null; // Hide empty unassigned column
+          const rawFieldPlayers = players.filter((p: any) => p.field_id === field.id && matchesFilters(p));
+          if (rawFieldPlayers.length === 0 && field.id === null) return null; // Hide empty unassigned column
+
+          const fieldPlayers = sortPlayersList(rawFieldPlayers);
 
           return (
             <Card key={field.id ?? "unassigned"} className='p-5 bg-surface/80 border-border shadow-sm flex flex-col space-y-4'>
@@ -342,7 +530,7 @@ export default function SessionRatingsPage(props: PageProps) {
 
               {fieldPlayers.length === 0 ? (
                 <div className='text-center py-6 text-xs text-muted/50 italic font-medium'>
-                  No players placed in this field.
+                  No players placed in this field matching current filters.
                 </div>
               ) : (
                 <div className='border border-border rounded-xl overflow-hidden bg-background/25'>

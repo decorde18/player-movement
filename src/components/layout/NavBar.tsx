@@ -12,7 +12,8 @@ import {
   ClipboardList, 
   LogOut, 
   LayoutDashboard,
-  Kanban
+  Kanban,
+  Mail
 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -159,6 +160,13 @@ function NavBar({
       label: "Player Board",
       path: "/player-board",
       icon: <Kanban size={18} />,
+      visible: true,
+    },
+    {
+      id: "invitations",
+      label: "Invitations & Roster",
+      path: "/admin/invitations",
+      icon: <Mail size={18} />,
       visible: true,
     },
     {

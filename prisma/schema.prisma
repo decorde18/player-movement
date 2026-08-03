@@ -62,22 +62,25 @@ model clubs {
 }
 
 model coach_notes {
-  id         Int       @id @default(autoincrement())
-  coach_id   Int
-  session_id Int?
-  event_id   Int
-  player_id  Int
-  note_text  String    @db.Text
-  created_at DateTime? @default(now()) @db.Timestamp(0)
-  users      User      @relation(fields: [coach_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_1")
-  sessions   sessions? @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_2")
-  events     events    @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_3")
-  players    players   @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_4")
+  id            Int               @id @default(autoincrement())
+  coach_id      Int
+  session_id    Int?
+  event_id      Int?
+  invitation_id Int?
+  player_id     Int
+  note_text     String            @db.Text
+  created_at    DateTime?         @default(now()) @db.Timestamp(0)
+  users         User              @relation(fields: [coach_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_1")
+  sessions      sessions?         @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_2")
+  events        events?           @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_3")
+  players       players           @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "coach_notes_ibfk_4")
+  invitations   team_invitations? @relation(fields: [invitation_id], references: [id], onDelete: Cascade)
 
   @@index([coach_id], map: "coach_id")
   @@index([event_id], map: "event_id")
   @@index([player_id], map: "player_id")
   @@index([session_id], map: "session_id")
+  @@index([invitation_id], map: "invitation_id")
 }
 
 model event_divisions {
@@ -99,6 +102,8 @@ model events {
   is_finalized          Boolean?                @default(false)
   finalized_by          String?                 @db.VarChar(255)
   finalized_at          DateTime?               @db.Timestamp(0)
+  rating_direction      String?                 @default("high_is_best") @db.VarChar(50)
+  tiers                 String?                 @db.Text
   coach_notes           coach_notes[]
   event_divisions       event_divisions[]
   event_players         event_players[]
@@ -152,10 +157,12 @@ model season_players {
   created_at          DateTime?         @default(now()) @db.Timestamp(0)
   player_status       String?           @default("none") @db.VarChar(50)
   season_team_id      Int?
+  uniform_number      String?           @db.VarChar(20)
   players             players           @relation(fields: [player_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_players_ibfk_1")
   season_age_groups   season_age_groups @relation(fields: [season_age_group_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_players_ibfk_2")
   season_teams        season_teams?     @relation(fields: [season_team_id], references: [id], onUpdate: Restrict, map: "season_players_ibfk_3")
   clubs               clubs?            @relation(fields: [club_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "season_players_ibfk_4")
+  team_invitations    team_invitations[]
 
   @@unique([player_id, season_age_group_id, club_id], map: "player_season_club")
   @@index([player_id], map: "player_id")
@@ -266,9 +273,29 @@ model season_teams {
   season_players      season_players[]
   session_players     session_players[]
   users               User[]
+  team_invitations    team_invitations[]
 
   @@unique([team_id, season_age_group_id], map: "team_id")
   @@index([season_age_group_id], map: "season_age_group_id")
+}
+
+model team_invitations {
+  id               Int            @id @default(autoincrement())
+  season_player_id Int
+  season_team_id   Int
+  status           String         @default("pending") @db.VarChar(50)
+  sent_at          DateTime?      @default(now()) @db.Timestamp(0)
+  responded_at     DateTime?      @db.Timestamp(0)
+  notes            String?        @db.VarChar(255)
+  created_at       DateTime?      @default(now()) @db.Timestamp(0)
+  updated_at       DateTime?      @default(now()) @db.Timestamp(0)
+
+  season_players   season_players @relation(fields: [season_player_id], references: [id], onDelete: Cascade)
+  season_teams     season_teams   @relation(fields: [season_team_id], references: [id], onDelete: Cascade)
+  coach_notes      coach_notes[]
+
+  @@index([season_player_id])
+  @@index([season_team_id])
 }
 
 model event_players {

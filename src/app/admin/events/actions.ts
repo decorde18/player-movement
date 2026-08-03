@@ -16,7 +16,8 @@ export interface EventInput {
   season_id: number;
   name: string;
   event_type: "tryout" | "ranking";
-  season_age_group_ids: number[];
+  season_age_group_ids?: number[];
+  season_team_id?: number;
 }
 
 import { cookies } from "next/headers";
@@ -89,8 +90,21 @@ export async function getEventsDashboardData() {
     orderBy: { start_date: "desc" },
   });
 
+  const seasonTeams = await db.season_teams.findMany({
+    include: {
+      teams: true,
+      season_age_groups: {
+        include: { age_groups: true }
+      }
+    },
+    orderBy: {
+      teams: { name: "asc" }
+    }
+  });
+
   return {
     seasons,
+    seasonTeams,
     userScope: {
       role: scope.role,
       clubId: scope.clubId,
@@ -161,7 +175,18 @@ export async function createEvent(input: EventInput) {
       return { success: false, error: "Access Denied: Season not found or out of scope." };
     }
 
-    const divisionIds = input.season_age_group_ids || [];
+    let divisionIds = input.season_age_group_ids || [];
+
+    // If season_team_id is provided for a Team-Level Event, resolve its season_age_group_id
+    if (input.season_team_id) {
+      const seasonTeam = await db.season_teams.findUnique({
+        where: { id: input.season_team_id },
+        select: { season_age_group_id: true }
+      });
+      if (seasonTeam && !divisionIds.includes(seasonTeam.season_age_group_id)) {
+        divisionIds = [seasonTeam.season_age_group_id];
+      }
+    }
 
     const event = await db.$transaction(async (tx) => {
       // 1. Create the event
@@ -183,16 +208,22 @@ export async function createEvent(input: EventInput) {
           skipDuplicates: true,
         });
 
-        // 3. Fetch all season_players in these divisions
+        // 3. Fetch season_players in these divisions (restricted to season_team_id if team event)
+        let playerWhere: any = {
+          season_age_group_id: { in: divisionIds },
+          ...(scope.isClubAdmin ? { club_id: scope.clubId } : {}),
+        };
+
+        if (input.season_team_id) {
+          playerWhere.season_team_id = input.season_team_id;
+        }
+
         const eligiblePlayers = await tx.season_players.findMany({
-          where: {
-            season_age_group_id: { in: divisionIds },
-            ...(scope.isClubAdmin ? { club_id: scope.clubId } : {}),
-          },
+          where: playerWhere,
           select: { player_id: true },
         });
 
-        // Deduplicate player_ids (a player may be in multiple divisions)
+        // Deduplicate player_ids
         const uniquePlayerIds = [...new Set(eligiblePlayers.map((sp) => sp.player_id))];
 
         // 4. Bulk-insert event_players with unavailable status

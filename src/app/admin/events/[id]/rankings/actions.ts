@@ -38,6 +38,22 @@ export async function getEventRankings(eventId: number, targetCoachEmail?: strin
   // If a specific coach ranking is targeted (and requestor is coordinator), use that, otherwise use own email
   const activeCoach = (isCoordinator && targetCoachEmail) ? targetCoachEmail : coachEmail;
 
+  // Rating direction: "high_is_best" (default 10 high) or "low_is_best" (1 high)
+  const ratingDirection = event.rating_direction || "high_is_best";
+
+  // Custom tiers list
+  let configuredTiers: string[] = ["Gold", "Competitive", "Development"];
+  if (event.tiers) {
+    try {
+      const parsed = JSON.parse(event.tiers);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        configuredTiers = parsed;
+      }
+    } catch {
+      configuredTiers = event.tiers.split(",").map(t => t.trim()).filter(Boolean);
+    }
+  }
+
   // 1. Fetch all event sessions to calculate average rating
   const sessions = await db.sessions.findMany({
     where: { event_id: eventId },
@@ -72,12 +88,33 @@ export async function getEventRankings(eventId: number, targetCoachEmail?: strin
     },
     include: {
       players: true,
+      season_teams: {
+        include: {
+          teams: true,
+        },
+      },
       season_age_groups: {
         include: {
           age_groups: true,
         },
       },
     },
+  });
+
+  // Fetch available season teams for these divisions
+  const availableSeasonTeams = await db.season_teams.findMany({
+    where: {
+      season_age_group_id: { in: divisionIds },
+    },
+    include: {
+      teams: true,
+      season_age_groups: {
+        include: { age_groups: true }
+      }
+    },
+    orderBy: {
+      teams: { name: "asc" }
+    }
   });
 
   // Deduplicate by player_id
@@ -97,16 +134,37 @@ export async function getEventRankings(eventId: number, targetCoachEmail?: strin
     },
   });
 
+  // Default tier name is the first configured tier
+  const defaultTier = configuredTiers[0] || "Development";
+
   // If no rankings exist for this coach, compute and save initial ranks
   if (existingRankings.length === 0 && players.length > 0) {
     const computedList = players.map(sp => {
       const ratings = playerRatingsMap.get(sp.player_id) || [];
       const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
 
-      // Tiering categories
-      let tier = "Development";
-      if (avgRating >= 8.5) tier = "Gold";
-      else if (avgRating >= 7.0) tier = "Competitive";
+      // Assign initial tier based on thresholds or default tier
+      let tier = defaultTier;
+      if (configuredTiers.length >= 3) {
+        if (ratingDirection === "high_is_best") {
+          if (avgRating >= 8.5) tier = configuredTiers[0];
+          else if (avgRating >= 7.0) tier = configuredTiers[1];
+          else tier = configuredTiers[2];
+        } else {
+          // low_is_best (1 is best)
+          if (avgRating > 0 && avgRating <= 3.0) tier = configuredTiers[0];
+          else if (avgRating > 3.0 && avgRating <= 6.0) tier = configuredTiers[1];
+          else tier = configuredTiers[2];
+        }
+      } else if (configuredTiers.length === 2) {
+        if (ratingDirection === "high_is_best") {
+          if (avgRating >= 7.5) tier = configuredTiers[0];
+          else tier = configuredTiers[1];
+        } else {
+          if (avgRating > 0 && avgRating <= 5.0) tier = configuredTiers[0];
+          else tier = configuredTiers[1];
+        }
+      }
 
       return {
         playerId: sp.player_id,
@@ -115,14 +173,20 @@ export async function getEventRankings(eventId: number, targetCoachEmail?: strin
       };
     });
 
-    // Auto-rank sequentially within each tier (sorting descending by rating)
-    const tiers = ["Gold", "Competitive", "Development"];
+    // Auto-rank sequentially within each tier
     const initialRankingsData: any[] = [];
 
-    tiers.forEach(tName => {
+    configuredTiers.forEach(tName => {
       const tierPlayers = computedList
         .filter(p => p.tier === tName)
-        .sort((a, b) => b.rating - a.rating);
+        .sort((a, b) => {
+          if (ratingDirection === "low_is_best") {
+            // Lower number is better (ascending order)
+            return (a.rating || 999) - (b.rating || 999);
+          }
+          // Higher number is better (descending order)
+          return b.rating - a.rating;
+        });
 
       tierPlayers.forEach((p, idx) => {
         initialRankingsData.push({
@@ -190,6 +254,7 @@ export async function getEventRankings(eventId: number, targetCoachEmail?: strin
 
     return {
       playerId: sp.player_id,
+      seasonPlayerId: sp.id,
       firstName: sp.players.first_name,
       lastName: sp.players.last_name,
       tryoutNumber: sp.tryout_number,
@@ -198,13 +263,18 @@ export async function getEventRankings(eventId: number, targetCoachEmail?: strin
       gender: sp.players.gender,
       rating: avgRating,
       rank: rankRec?.rank || 0,
-      tier: rankRec?.tier || "Development",
+      tier: rankRec?.tier || "Unassigned",
+      seasonTeamId: sp.season_team_id || null,
+      teamName: sp.season_teams?.teams?.name || null,
     };
   });
 
   return {
     event,
+    eventTiers: configuredTiers,
+    ratingDirection,
     rankings: data,
+    seasonTeams: availableSeasonTeams,
     otherCoaches,
     activeCoach,
     isCoordinator,
@@ -235,7 +305,7 @@ export async function updateRankings(
 
   await db.$transaction(
     rankings.map(r =>
-      db.event_player_rankings.update({
+      db.event_player_rankings.upsert({
         where: {
           event_id_player_id_coach_id: {
             event_id: eventId,
@@ -243,7 +313,14 @@ export async function updateRankings(
             coach_id: targetCoach,
           },
         },
-        data: {
+        update: {
+          rank: r.rank,
+          tier: r.tier,
+        },
+        create: {
+          event_id: eventId,
+          player_id: r.playerId,
+          coach_id: targetCoach,
           rank: r.rank,
           tier: r.tier,
         },
@@ -278,4 +355,109 @@ export async function finalizeRankings(eventId: number) {
 
   revalidatePath(`/admin/events/${eventId}/rankings`);
   return { success: true };
+}
+
+export async function unlockRankings(eventId: number) {
+  const sessionUser = await getServerAuthSession();
+  const userRole = sessionUser?.user?.role || "coach";
+  const isCoordinator =
+    userRole === "system_admin" || userRole === "club_admin" || userRole === "age_group_admin";
+
+  if (!isCoordinator) {
+    return { success: false, error: "Unauthorized. Only coordinators can unlock rankings." };
+  }
+
+  await db.events.update({
+    where: { id: eventId },
+    data: {
+      is_finalized: false,
+      finalized_by: null,
+      finalized_at: null,
+    },
+  });
+
+  revalidatePath(`/admin/events/${eventId}/rankings`);
+  return { success: true };
+}
+
+export async function updateEventRankingSettings(
+  eventId: number,
+  ratingDirection: "high_is_best" | "low_is_best",
+  tiers: string[]
+) {
+  const sessionUser = await getServerAuthSession();
+  const userRole = sessionUser?.user?.role || "coach";
+  const isCoordinator =
+    userRole === "system_admin" || userRole === "club_admin" || userRole === "age_group_admin";
+
+  if (!isCoordinator) {
+    return { success: false, error: "Unauthorized. Only coordinators can edit event settings." };
+  }
+
+  await db.events.update({
+    where: { id: eventId },
+    data: {
+      rating_direction: ratingDirection,
+      tiers: JSON.stringify(tiers),
+    },
+  });
+
+  revalidatePath(`/admin/events/${eventId}/rankings`);
+  return { success: true };
+}
+
+export async function assignEventPlayerToTeam(
+  eventId: number,
+  seasonPlayerId: number,
+  seasonTeamId: number | null
+) {
+  const sessionUser = await getServerAuthSession();
+  if (!sessionUser) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    await db.season_players.update({
+      where: { id: seasonPlayerId },
+      data: {
+        season_team_id: seasonTeamId
+      }
+    });
+
+    revalidatePath(`/admin/events/${eventId}/rankings`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to assign player to team." };
+  }
+}
+
+export async function bulkAssignEventPlayersToTeam(
+  eventId: number,
+  seasonPlayerIds: number[],
+  seasonTeamId: number | null
+) {
+  const sessionUser = await getServerAuthSession();
+  if (!sessionUser) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  if (!seasonPlayerIds || seasonPlayerIds.length === 0) {
+    return { success: false, error: "No players selected." };
+  }
+
+  try {
+    await db.season_players.updateMany({
+      where: {
+        id: { in: seasonPlayerIds }
+      },
+      data: {
+        season_team_id: seasonTeamId
+      }
+    });
+
+    revalidatePath(`/admin/events/${eventId}/rankings`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to bulk assign players to team." };
+  }
 }

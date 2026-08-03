@@ -20,14 +20,14 @@ export default function Checkbox({
   className = "",
 }: CheckboxProps) {
   return (
-    <label className='flex items-center gap-2 cursor-pointer mb-2'>
+    <label className={cn("inline-flex items-center align-middle leading-none gap-2 cursor-pointer select-none", label && "mb-2")}>
       <input
         type='checkbox'
         checked={checked}
         onChange={onChange}
         disabled={disabled}
         className={cn(
-          "w-5 h-5 accent-primary rounded-[var(--radius-sm)] border border-border",
+          "w-4 h-4 accent-purple-600 rounded border border-border focus:ring-0 cursor-pointer",
           disabled && "opacity-60 cursor-not-allowed",
           error && "border-danger",
           className

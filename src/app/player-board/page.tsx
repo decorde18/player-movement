@@ -580,10 +580,10 @@ export default function PlayerBoardPage() {
   const fields = boardData?.fields || [];
 
   return (
-    <div className='space-y-6 w-full flex flex-col min-h-0 h-full animate-fadeIn pb-24 relative'>
+    <div className='w-full flex-1 flex flex-col min-h-0 animate-fadeIn relative space-y-4 pb-2'>
       
       {/* Top Selectors Card */}
-      <Card className='p-4 bg-surface/80 border-border backdrop-blur-md flex flex-wrap gap-4 items-end'>
+      <Card className='p-4 bg-surface/80 border-border backdrop-blur-md flex flex-wrap gap-4 items-end shrink-0'>
         <div className='flex-1 min-w-[150px]'>
           <label className='block text-[0.65rem] font-bold text-text-label uppercase tracking-wider mb-1'>Season</label>
           <select 
@@ -653,7 +653,7 @@ export default function PlayerBoardPage() {
         <div className='flex-1 min-h-0 h-full flex flex-col gap-6'>
           
           {/* Action Toolbar */}
-          <div className='flex flex-wrap items-center justify-between gap-4'>
+          <div className='flex flex-wrap items-center justify-between gap-4 shrink-0'>
             {/* Create Field Form & Filters Row */}
             <div className='flex flex-wrap items-center gap-4 flex-1 min-w-0'>
               {/* Board Filters Dropdowns */}
