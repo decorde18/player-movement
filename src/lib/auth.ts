@@ -132,8 +132,11 @@ export async function getServerAuthSession(): Promise<Session | null> {
   try {
     const cookieStore = await cookies();
     const impersonateUserId = cookieStore.get("impersonateUserId")?.value;
+    const showDevSwitcher =
+      process.env.NODE_ENV === "development" ||
+      process.env.NEXT_PUBLIC_ENABLE_DEV_USER_SWITCHER === "true";
 
-    if (impersonateUserId) {
+    if (impersonateUserId && showDevSwitcher) {
       const impId = parseInt(impersonateUserId, 10);
       if (!isNaN(impId)) {
         const impUser = await db.user.findUnique({

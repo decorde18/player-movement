@@ -5,6 +5,14 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 export async function getUsersForImpersonation() {
+  const showDevSwitcher =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_ENABLE_DEV_USER_SWITCHER === "true";
+
+  if (!showDevSwitcher) {
+    return { success: false, error: "User switching is disabled in production." };
+  }
+
   try {
     const users = await db.user.findMany({
       select: {
@@ -35,6 +43,14 @@ export async function getUsersForImpersonation() {
 }
 
 export async function setImpersonatedUser(userId: number | null) {
+  const showDevSwitcher =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_ENABLE_DEV_USER_SWITCHER === "true";
+
+  if (!showDevSwitcher && userId !== null) {
+    return { success: false, error: "User switching is disabled in production." };
+  }
+
   try {
     const cookieStore = await cookies();
 

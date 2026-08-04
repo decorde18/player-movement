@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useTransition } from "react";
 import { getUsersForImpersonation, setImpersonatedUser } from "@/lib/actions/impersonation";
-import { UserCheck, ShieldAlert, X, Eye } from "lucide-react";
+import { X, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 interface UserSwitcherBarProps {
@@ -15,8 +15,13 @@ export default function UserSwitcherBar({ currentUser }: UserSwitcherBarProps) {
   const [isPending, startTransition] = useTransition();
 
   const isImpersonating = currentUser?.isImpersonating || false;
+  const showDevSwitcher =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_ENABLE_DEV_USER_SWITCHER === "true";
 
   useEffect(() => {
+    if (!showDevSwitcher && !isImpersonating) return;
+
     async function loadUsers() {
       setLoading(true);
       try {
@@ -31,7 +36,11 @@ export default function UserSwitcherBar({ currentUser }: UserSwitcherBarProps) {
       }
     }
     loadUsers();
-  }, []);
+  }, [showDevSwitcher, isImpersonating]);
+
+  if (!showDevSwitcher && !isImpersonating) {
+    return null;
+  }
 
   const handleSelectUser = (userIdStr: string) => {
     const val = userIdStr === "reset" ? null : Number(userIdStr);

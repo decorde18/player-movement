@@ -121,7 +121,7 @@ Phase 11 — Polish, Mobile & Deployment
   • [x] Deploy pipeline to Hostinger (or wherever this ends up hosting) — confirm Node/Next.js support on the current Hostinger plan
   • [x] Point production DB at the migrated schema, run a final backup before cutover
 
-
+• [x] My dev user switcher is showing up in deployment
 
 Verify all tables use our component. Make sure our component allows column sorting. All tables need to use column sorting where appropriate.
 When creating teams, we need to keep a hierarchy not just organized alphabetically. 
