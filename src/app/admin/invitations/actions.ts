@@ -48,7 +48,7 @@ export async function getRosterInvitations(seasonAgeGroupId?: number, seasonTeam
   });
 
   // 3. Filter by season_team_id if provided
-  let playerWhere: any = {};
+  const playerWhere: any = {};
   if (selectedAgeGroupId) {
     playerWhere.season_age_group_id = selectedAgeGroupId;
   }

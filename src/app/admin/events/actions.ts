@@ -209,7 +209,7 @@ export async function createEvent(input: EventInput) {
         });
 
         // 3. Fetch season_players in these divisions (restricted to season_team_id if team event)
-        let playerWhere: any = {
+        const playerWhere: any = {
           season_age_group_id: { in: divisionIds },
           ...(scope.isClubAdmin ? { club_id: scope.clubId } : {}),
         };

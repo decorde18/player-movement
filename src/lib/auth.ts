@@ -205,5 +205,9 @@ export async function getServerAuthSession(): Promise<Session | null> {
       expires: new Date(Date.now() + 3600000).toISOString(),
     } as any;
   }
-  return await getServerSession(authOptions as any);
+  try {
+    return await getServerSession(authOptions as any);
+  } catch {
+    return null;
+  }
 }

@@ -1,10 +1,9 @@
-import fs from "node:fs";
+const fs = require('fs');
 
-// Fix for Windows exFAT / external drive bug where fs.readlink on regular files returns EISDIR instead of EINVAL
 const wrapReadlinkErr = (err) => {
-  if (err && err.code === "EISDIR") {
+  if (err && err.code === 'EISDIR') {
     const error = new Error(`EINVAL: invalid argument, readlink '${err.path}'`);
-    error.code = "EINVAL";
+    error.code = 'EINVAL';
     error.errno = -4071;
     return error;
   }
@@ -14,13 +13,13 @@ const wrapReadlinkErr = (err) => {
 if (fs.readlink) {
   const origReadlink = fs.readlink;
   fs.readlink = function (path, options, callback) {
-    if (typeof options === "function") {
+    if (typeof options === 'function') {
       callback = options;
       options = undefined;
     }
     return origReadlink.call(this, path, options, (err, target) => {
       if (err) return callback(wrapReadlinkErr(err));
-      callback(null, target);
+      if (callback) callback(null, target);
     });
   };
 }
@@ -46,11 +45,3 @@ if (fs.promises && fs.promises.readlink) {
     }
   };
 }
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  /* config options here */
-};
-
-export default nextConfig;
-

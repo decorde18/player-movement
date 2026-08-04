@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node -r ./patch-readlink.cjs node_modules/next/dist/bin/next dev",
+    "build": "prisma generate && node -r ./patch-readlink.cjs node_modules/next/dist/bin/next build",
     "start": "next start",
     "lint": "eslint"
   },

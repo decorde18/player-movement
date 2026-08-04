@@ -42,8 +42,8 @@ export async function getSeasons(): Promise<Seasons[]> {
   return bodies.map((r) => ({
     id: r.id,
     name: r.name,
-    start_date: r.start_date ?? null,
-    end_date: r.end_date ?? null,
+    start_date: toDateString(r.start_date),
+    end_date: toDateString(r.end_date),
   }));
 }
 export async function getClubs(): Promise<Clubs[]> {
@@ -62,7 +62,7 @@ export async function getAgeGroups(): Promise<AgeGroups[]> {
   return bodies.map((r) => ({
     id: r.id,
     name: r.name,
-    dob_start: r.dob_start ?? null,
-    dob_end: r.dob_end ?? null,
+    dob_start: toDateString(r.dob_start),
+    dob_end: toDateString(r.dob_end),
   }));
 }

@@ -96,7 +96,7 @@ export function GenericTable<T extends Record<string, unknown>>({
             : "—";
         }
         if (col.type === "boolean") {
-          return val == 1 || val === true || val === "true" ? (
+          return String(val) === "1" || String(val) === "true" || (val as unknown) === true ? (
             <span className='text-xs font-medium text-success'>Yes</span>
           ) : (
             <span className='text-xs text-muted'>No</span>

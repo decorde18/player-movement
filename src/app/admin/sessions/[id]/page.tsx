@@ -263,7 +263,7 @@ export default function SessionRosterPage(props: PageProps) {
                 {filteredRoster.length === 0 ? (
                   <tr>
                     <td colSpan={5} className='p-8 text-center text-muted font-bold'>
-                      No players found for this event's age groups.
+                      No players found for this event&apos;s age groups.
                     </td>
                   </tr>
                 ) : (

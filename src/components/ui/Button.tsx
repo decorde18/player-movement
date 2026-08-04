@@ -36,8 +36,9 @@ export interface ButtonProps
     | "muted"
     | "outline"
     | "danger"
-    | "secondary";
-  size?: "xs" | "sm" | "md" | "lg";
+    | "secondary"
+    | "ghost";
+  size?: "xs" | "sm" | "md" | "lg" | "icon";
 }
 
 export default function Button({
@@ -56,6 +57,7 @@ export default function Button({
     sm: "text-xs px-2 py-1",
     md: "text-base px-4 py-2",
     lg: "text-lg px-6 py-3",
+    icon: "p-2 aspect-square text-base",
   };
 
   const variants: Record<string, string> = {
@@ -65,6 +67,7 @@ export default function Button({
     outline: "border-2 border-border text-text hover:bg-background",
     danger: "border border-border bg-danger text-white hover:opacity-90",
     secondary: "bg-secondary text-white hover:opacity-90",
+    ghost: "bg-transparent text-text hover:bg-background/80 shadow-none border-none",
   };
 
   return (
