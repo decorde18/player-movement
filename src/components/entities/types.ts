@@ -1,4 +1,6 @@
-export type Role = "SYSTEM_ADMIN" | "CLUB_ADMIN" | "AGE_GROUP_ADMIN" | "COACH";
+import { Role } from "@/lib/roles";
+
+export type { Role };
 
 export type FieldType =
   | "text"
@@ -27,7 +29,7 @@ export interface FormField {
   creatable?: boolean;
   creatableConfig?: EntityConfig;
   valueKey?: string; // the DB key to submit under (e.g. "governingBodyId")
-  onCreatableSubmit?: (data: Record<string, string>) => Promise<any>;
+  onCreatableSubmit?: (data: Record<string, any>) => Promise<any>;
 }
 
 export interface TableColumn {

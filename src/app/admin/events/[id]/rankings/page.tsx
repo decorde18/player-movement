@@ -222,7 +222,7 @@ export default function EventRankingsPage() {
     if (selectedPlayerIds.size === 0 || !targetTier) return;
     if (data?.isFinalized) return;
 
-    let updatedList = [...rankingsList];
+    const updatedList = [...rankingsList];
 
     selectedPlayerIds.forEach(pid => {
       const playerObj = updatedList.find(p => p.playerId === pid);
@@ -297,7 +297,7 @@ export default function EventRankingsPage() {
     if (!sourcePlayer) return;
 
     // Remove source player from rankings list temporarily
-    let updatedList = rankingsList.filter(p => p.playerId !== sourcePlayerId);
+    const updatedList = rankingsList.filter(p => p.playerId !== sourcePlayerId);
 
     // Update tier
     sourcePlayer.tier = targetTier;

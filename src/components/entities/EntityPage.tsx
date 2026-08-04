@@ -25,8 +25,8 @@ interface EntityPageProps<T extends Record<string, unknown>> {
   config: EntityConfig;
   data: T[];
 
-  onCreate: (data: Record<string, string>) => Promise<void>;
-  onUpdate: (id: unknown, data: Record<string, string>) => Promise<void>;
+  onCreate: (data: Record<string, any>) => Promise<void>;
+  onUpdate: (id: unknown, data: Record<string, any>) => Promise<void>;
   onDelete: (id: unknown) => Promise<void>;
   stats?: { label: string; value: number | string }[];
 }
@@ -74,10 +74,31 @@ export function EntityPage<T extends Record<string, unknown>>({
     activeRoles.includes(role),
   );
 
-  const statusCol = config.table.columns.find((c) => c.type === "badge");
-  const statusOptions = statusCol?.options
-    ? Object.keys(statusCol.options)
-    : [];
+  const statusCol = useMemo(
+    () => config.table.columns.find((c) => c.key === "status"),
+    [config],
+  );
+
+  const statusOptions = useMemo(() => {
+    if (!statusCol?.options) return [];
+    return Object.keys(statusCol.options).map((k) => ({
+      value: k,
+      label: k,
+    }));
+  }, [statusCol]);
+
+  const statsList = stats
+    ? stats
+    : [
+        { label: `Total ${config.title}`, value: data.length },
+
+        ...(statusCol?.options
+          ? Object.keys(statusCol.options).map((k) => ({
+              label: k,
+              value: data.filter((row) => row[statusCol.key as keyof T] === k).length,
+            }))
+          : []),
+      ];
 
   const filteredData = useMemo(() => {
     if (!statusFilter) return data;
@@ -86,7 +107,7 @@ export function EntityPage<T extends Record<string, unknown>>({
     );
   }, [data, statusFilter, statusCol]);
 
-  const handleCreate = async (formData: Record<string, string>) => {
+  const handleCreate = async (formData: Record<string, any>) => {
     try {
       await onCreate(formData);
       setData((prev) => [
@@ -100,7 +121,7 @@ export function EntityPage<T extends Record<string, unknown>>({
     }
   };
 
-  const handleUpdate = async (formData: Record<string, string>) => {
+  const handleUpdate = async (formData: Record<string, any>) => {
     if (!editRecord) return;
     const id = (editRecord as Record<string, unknown>).id;
     try {
@@ -245,10 +266,7 @@ export function EntityPage<T extends Record<string, unknown>>({
               onChange={(e: any) => setStatusFilter(e.target.value)}
               options={[
                 { value: "", label: "All statuses" },
-                ...statusOptions.map((s) => ({
-                  value: s,
-                  label: s.charAt(0).toUpperCase() + s.slice(1),
-                })),
+                ...statusOptions,
               ]}
               showPlaceholder={false}
               className='min-w-[140px]'
