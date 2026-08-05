@@ -48,6 +48,7 @@ export default function SeasonsAdminPage() {
       name: form.name,
       start_date: form.start_date || undefined,
       end_date: form.end_date || undefined,
+      cutoff_type: form.cutoff_type || "seasonal",
       clone_from_season_id: form.clone_from_season_id || undefined,
     });
 
@@ -105,6 +106,29 @@ export default function SeasonsAdminPage() {
       ),
     },
     {
+      key: "cutoff_type",
+      label: "Age Cutoff Standard",
+      type: "select",
+      options: [
+        { value: "seasonal", label: "Seasonal (8/1 - 7/31) - Default" },
+        { value: "calendar", label: "Calendar (1/1 - 12/31)" },
+      ],
+      render: (s: any) => {
+        const isCal = s.cutoff_type === "calendar";
+        return (
+          <span
+            className={`px-2 py-0.5 rounded-full text-[0.65rem] font-bold border ${
+              isCal
+                ? "bg-purple-50 text-purple-700 border-purple-200"
+                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+            }`}
+          >
+            {isCal ? "Calendar (1/1–12/31)" : "Seasonal (8/1–7/31)"}
+          </span>
+        );
+      },
+    },
+    {
       key: "start_date",
       label: "Start Date",
       type: "date",
@@ -153,7 +177,7 @@ export default function SeasonsAdminPage() {
           required: true,
           options: ageGroups.map((ag: any) => ({
             value: ag.id,
-            label: `${ag.name} (${new Date(ag.dob_start).getFullYear()}–${new Date(ag.dob_end).getFullYear()})`,
+            label: `[${ag.cutoff_type === "calendar" ? "Calendar 1/1-12/31" : "Seasonal 8/1-7/31"}] ${ag.name}`,
           })),
           render: (child: any) => (
             <span className='font-semibold text-text'>
@@ -195,7 +219,7 @@ export default function SeasonsAdminPage() {
     <CrudDashboard
       title='Seasons Management'
       icon={<Calendar size={32} className='text-primary' />}
-      description='Create seasons, then configure which age groups and genders (divisions) each season supports.'
+      description='Create seasons, specify age group cutoff preferences (defaulting to 8/1–7/31), and configure divisions for Boys and Girls.'
       items={seasons}
       columns={columns}
       onSave={handleSave}
@@ -203,7 +227,28 @@ export default function SeasonsAdminPage() {
       subtables={subtables}
       searchPlaceholder='Search seasons by name...'
       extraAddFields={(formState, setFormState) => (
-        <div className='grid grid-cols-1 gap-4 border-t border-border pt-4 animate-fadeIn'>
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4 animate-fadeIn'>
+          <div>
+            <label className='block text-xs font-bold text-text-label mb-1'>
+              Age Group Cutoff Preference
+            </label>
+            <select
+              value={formState.cutoff_type || "seasonal"}
+              onChange={(e) =>
+                setFormState((prev: any) => ({
+                  ...prev,
+                  cutoff_type: e.target.value,
+                }))
+              }
+              className='text-sm bg-surface font-semibold py-2 px-3 border border-border rounded-md w-full focus:outline-none focus:ring-1 focus:ring-primary'
+            >
+              <option value='seasonal'>Seasonal (8/1 - 7/31) - Default (TSC, Club Soccer)</option>
+              <option value='calendar'>Calendar Year (1/1 - 12/31) - (ODP, US Soccer)</option>
+            </select>
+            <p className='text-[0.6rem] text-muted mt-1'>
+              Determines which age group DOB standard this club/season defaults to.
+            </p>
+          </div>
           <div>
             <label className='block text-xs font-bold text-text-label mb-1'>
               Clone Divisions From (Optional)

@@ -25,6 +25,7 @@ export default function AgeGroupsManager({
     name: "",
     dob_start: "",
     dob_end: "",
+    cutoff_type: "seasonal",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -39,10 +40,11 @@ export default function AgeGroupsManager({
         dob_end: ageGroup.dob_end
           ? new Date(ageGroup.dob_end).toISOString().split("T")[0]
           : "",
+        cutoff_type: ageGroup.cutoff_type || "seasonal",
       });
     } else {
       setEditingAgeGroup(null);
-      setFormData({ name: "", dob_start: "", dob_end: "" });
+      setFormData({ name: "", dob_start: "", dob_end: "", cutoff_type: "seasonal" });
     }
     setIsModalOpen(true);
   };
@@ -104,6 +106,9 @@ export default function AgeGroupsManager({
                 Name
               </th>
               <th className='px-6 py-4 font-semibold border-b border-[var(--border)]'>
+                Cutoff Type
+              </th>
+              <th className='px-6 py-4 font-semibold border-b border-[var(--border)]'>
                 DOB Range
               </th>
               <th className='px-6 py-4 font-semibold border-b border-[var(--border)] text-right'>
@@ -121,6 +126,17 @@ export default function AgeGroupsManager({
                   <div className='font-semibold text-[var(--foreground)]'>
                     {ag.name}
                   </div>
+                </td>
+                <td className='px-6 py-4'>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[0.7rem] font-bold border ${
+                      ag.cutoff_type === "calendar"
+                        ? "bg-purple-50 text-purple-700 border-purple-200"
+                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    }`}
+                  >
+                    {ag.cutoff_type === "calendar" ? "Calendar (1/1-12/31)" : "Seasonal (8/1-7/31)"}
+                  </span>
                 </td>
                 <td className='px-6 py-4'>
                   <div className='flex items-center gap-2 text-sm text-[var(--muted-foreground)]'>
@@ -157,7 +173,7 @@ export default function AgeGroupsManager({
             {initialAgeGroups.length === 0 && (
               <tr>
                 <td
-                  colSpan={3}
+                  colSpan={4}
                   className='px-6 py-8 text-center text-[var(--muted-foreground)]'
                 >
                   No age groups found. Create one to get started.
@@ -188,6 +204,20 @@ export default function AgeGroupsManager({
               }
               placeholder='e.g. U12, 2014, etc.'
             />
+          </div>
+
+          <div>
+            <label className='block text-sm font-semibold text-[var(--foreground)] mb-1'>
+              Cutoff Type
+            </label>
+            <select
+              value={formData.cutoff_type}
+              onChange={(e) => setFormData({ ...formData, cutoff_type: e.target.value })}
+              className='w-full rounded-md border border-[var(--border)] bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary'
+            >
+              <option value='seasonal'>Seasonal (8/1 - 7/31)</option>
+              <option value='calendar'>Calendar (1/1 - 12/31)</option>
+            </select>
           </div>
 
           <div className='space-y-4'>

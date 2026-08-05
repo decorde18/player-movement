@@ -36,6 +36,7 @@ model age_groups {
   name              String              @db.VarChar(50)
   dob_start         DateTime            @db.Date
   dob_end           DateTime            @db.Date
+  cutoff_type       String?             @default("seasonal") @db.VarChar(20)
   created_at        DateTime?           @default(now()) @db.Timestamp(0)
   season_age_groups season_age_groups[]
   users             User[]
@@ -176,6 +177,7 @@ model seasons {
   name              String              @db.VarChar(255)
   start_date        DateTime?           @db.Date
   end_date          DateTime?           @db.Date
+  cutoff_type       String?             @default("seasonal") @db.VarChar(20)
   created_at        DateTime?           @default(now()) @db.Timestamp(0)
   club_seasons      club_seasons[]
   events            events[]
