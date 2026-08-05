@@ -7,6 +7,7 @@ export async function createAgeGroup(data: {
   name: string;
   dob_start: string;
   dob_end: string;
+  cutoff_type?: string;
 }) {
   try {
     await db.age_groups.create({
@@ -14,6 +15,7 @@ export async function createAgeGroup(data: {
         name: data.name,
         dob_start: new Date(data.dob_start),
         dob_end: new Date(data.dob_end),
+        cutoff_type: data.cutoff_type || "seasonal",
       },
     });
     revalidatePath("/admin/age-groups");
@@ -27,7 +29,7 @@ export async function createAgeGroup(data: {
 
 export async function updateAgeGroup(
   id: number,
-  data: { name: string; dob_start: string; dob_end: string },
+  data: { name: string; dob_start: string; dob_end: string; cutoff_type?: string },
 ) {
   try {
     await db.age_groups.update({
@@ -36,6 +38,7 @@ export async function updateAgeGroup(
         name: data.name,
         dob_start: new Date(data.dob_start),
         dob_end: new Date(data.dob_end),
+        cutoff_type: data.cutoff_type,
       },
     });
     revalidatePath("/admin/age-groups");

@@ -123,8 +123,11 @@ Phase 11 — Polish, Mobile & Deployment
 
 • [x] My dev user switcher is showing up in deployment
 
+• [x] Populate age groups (Boys/Girls, 2007-2018 for Calendar Year 1/1-12/31 and Seasonal Year 8/1-7/31, with default 8/1-7/31 cutoff selection when creating seasons)
+need boys and girls for each
+
 Verify all tables use our component. Make sure our component allows column sorting. All tables need to use column sorting where appropriate.
-When creating teams, we need to keep a hierarchy not just organized alphabetically. 
+When creating teams for player placement, we need to keep a hierarchy not just organized alphabetically (top team, next team, etc) for sorting purposes. 
 We need a way to actually send invitations. Probably need a parent table linked to players and the email, phone for the parents- on import, we will need to import those as well.
 Staff registry needs to allow for multiple age groups (and teams) per coach when adding 
 filter assigned team by assigned age groups

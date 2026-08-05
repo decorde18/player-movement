@@ -11,6 +11,7 @@ export interface SeasonMutationInput {
   name: string;
   start_date?: string;
   end_date?: string;
+  cutoff_type?: string;
   clone_from_season_id?: string; // Optional parent season to clone divisions from
 }
 
@@ -43,7 +44,7 @@ export async function getSeasonsDashboardData() {
       orderBy: { start_date: "desc" },
     }),
     db.age_groups.findMany({
-      orderBy: { name: "asc" },
+      orderBy: [{ cutoff_type: "asc" }, { dob_start: "desc" }, { name: "asc" }],
     }),
   ]);
 
@@ -68,6 +69,7 @@ export async function saveSeason(input: SeasonMutationInput) {
 
     const startDate = input.start_date ? new Date(input.start_date) : null;
     const endDate = input.end_date ? new Date(input.end_date) : null;
+    const cutoffType = input.cutoff_type || "seasonal";
 
     if (input.id) {
       // 1. EDIT OPERATION
@@ -89,6 +91,7 @@ export async function saveSeason(input: SeasonMutationInput) {
           name: input.name,
           start_date: startDate,
           end_date: endDate,
+          cutoff_type: cutoffType,
         },
       });
 
@@ -103,6 +106,7 @@ export async function saveSeason(input: SeasonMutationInput) {
             name: input.name,
             start_date: startDate,
             end_date: endDate,
+            cutoff_type: cutoffType,
           },
         });
 
