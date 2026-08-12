@@ -126,18 +126,24 @@ Phase 11 — Polish, Mobile & Deployment
 • [x] Populate age groups (Boys/Girls, 2007-2018 for Calendar Year 1/1-12/31 and Seasonal Year 8/1-7/31, with default 8/1-7/31 cutoff selection when creating seasons)
 need boys and girls for each
 
-Verify all tables use our component. Make sure our component allows column sorting. All tables need to use column sorting where appropriate.
-When creating teams for player placement, we need to keep a hierarchy not just organized alphabetically (top team, next team, etc) for sorting purposes. 
-We need a way to actually send invitations. Probably need a parent table linked to players and the email, phone for the parents- on import, we will need to import those as well.
-Staff registry needs to allow for multiple age groups (and teams) per coach when adding 
-filter assigned team by assigned age groups
-on logged in user, the active season should only show the seasons they were active for. Similarly for active division. they should only have access to their own sessions and age groups, teams.
-on team invitation page, we want to see more players so let's shrink the informational cards at the top. Make the header shorter as well
+---
 
-session roster should have its own button on sidebar so all can enter attendance
+## Next Steps
 
-ratings entry should be 
-we need a dashboard
+### 🔴 High Priority
 
+- [ ] **Dashboard** — build a home dashboard view with relevant summary info per role (coach, coordinator, admin)
+- [ ] **Session roster sidebar button** — add a dedicated sidebar button for session roster so all coaches can quickly access attendance entry
+- [ ] **Active season/division scoping for logged-in user** — active season should only show seasons the user was active for; active division should only show their assigned age groups/teams/sessions
 
+### 🟡 Medium Priority
 
+- [ ] **Staff registry — multiple age groups & teams per coach** — when adding/editing a staff member, allow assigning multiple age groups and multiple teams
+- [ ] **Filter assigned team by assigned age group** — when viewing or assigning teams, scope the team dropdown/list to the user's assigned age group(s)
+- [ ] **Team hierarchy for player placement** — teams should have an explicit rank/order (1st team, 2nd team, etc.) rather than alphabetical sort; this order should drive sorting throughout placement and roster views
+- [ ] **Invitation page — compact layout** — shrink the informational cards at the top of the team invitation page and reduce header height so more players are visible
+- [ ] **Parent table & invitation emails** — create a `parents` table linked to players (email, phone); update player import to support parent contact fields; wire up actual invitation sending
+
+### 🟢 Lower Priority / Refactors
+
+- [ ] **Table audit** — verify all list views use the shared table component; ensure the component supports column sorting and enable sorting on all appropriate columns
