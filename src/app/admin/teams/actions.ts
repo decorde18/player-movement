@@ -11,6 +11,7 @@ export interface TeamInput {
   name: string;
   club_id: number;
   season_age_group_id?: number;
+  sort_order?: number;
 }
 
 export async function getTeamsData() {
@@ -35,6 +36,7 @@ export async function getTeamsData() {
               },
             },
           },
+          orderBy: [{ sort_order: "asc" }, { created_at: "asc" }],
         },
       },
       orderBy: { name: "asc" },
@@ -113,7 +115,14 @@ export async function createTeam(input: TeamInput) {
             data: {
               team_id: team.id,
               season_age_group_id: input.season_age_group_id,
+              sort_order: input.sort_order ?? 0,
             },
+          });
+        } else {
+          // Update sort_order if it changed
+          await tx.season_teams.update({
+            where: { id: existingSt.id },
+            data: { sort_order: input.sort_order ?? existingSt.sort_order },
           });
         }
       }
@@ -126,6 +135,37 @@ export async function createTeam(input: TeamInput) {
   } catch (error: any) {
     console.error("createTeam Error:", error);
     return { success: false, error: error.message || "Failed to save team." };
+  }
+}
+
+/**
+ * Update the sort_order of a specific season_team entry
+ */
+export async function updateTeamSortOrder(seasonTeamId: number, sortOrder: number) {
+  try {
+    const session = await getServerAuthSession();
+    const scope = getScopeFilters(session);
+
+    const st = await db.season_teams.findUnique({
+      where: { id: seasonTeamId },
+      include: { teams: true },
+    });
+
+    if (!st) return { success: false, error: "Season team entry not found." };
+    if (scope.isClubAdmin && st.teams.club_id !== scope.clubId) {
+      return { success: false, error: "Access Denied." };
+    }
+
+    await db.season_teams.update({
+      where: { id: seasonTeamId },
+      data: { sort_order: sortOrder },
+    });
+
+    revalidatePath("/admin/teams");
+    return { success: true };
+  } catch (error: any) {
+    console.error("updateTeamSortOrder Error:", error);
+    return { success: false, error: error.message || "Failed to update sort order." };
   }
 }
 

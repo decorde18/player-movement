@@ -131,10 +131,12 @@ export async function saveSeason(input: SeasonMutationInput) {
             where: { season_id: sourceSeasonId },
           });
 
+          // Map of sourceSeasonAgeGroupId -> newSeasonAgeGroupId
+          const newDivisionsByAgeGroupGender: Record<string, number> = {};
+
           // Duplicate them under the newly created season
-          // NOTE: We do NOT insert anything into season_players, leaving all rosters blank!
           for (const div of sourceDivisions) {
-            await tx.season_age_groups.create({
+            const newDiv = await tx.season_age_groups.create({
               data: {
                 season_id: season.id,
                 age_group_id: div.age_group_id,
@@ -142,7 +144,66 @@ export async function saveSeason(input: SeasonMutationInput) {
                 name: div.name,
               },
             });
+            // Key = "ageGroupId_gender" to look up the new division
+            newDivisionsByAgeGroupGender[`${div.age_group_id}_${div.gender}`] = newDiv.id;
           }
+
+          // Auto-register players from the previous season that qualify by DOB
+          // 1. Fetch all players registered in the source season (with their season_age_group info)
+          const sourcePlayers = await tx.season_players.findMany({
+            where: { season_age_group_id: { in: sourceDivisions.map((d) => d.id) } },
+            include: {
+              players: { select: { id: true, date_of_birth: true } },
+              season_age_groups: {
+                include: { age_groups: true },
+              },
+            },
+          });
+
+          // 2. For each source player, find the matching new division by DOB range
+          const newSeasonPlayerRows: { player_id: number; season_age_group_id: number; club_id?: number }[] = [];
+
+          for (const sp of sourcePlayers) {
+            const dob = sp.players?.date_of_birth;
+            if (!dob) continue;
+
+            const dobDate = new Date(dob);
+
+            // Find a matching new division for this player's DOB
+            for (const newDiv of sourceDivisions) {
+              const ageGroup = (sp.season_age_groups?.age_groups) as any;
+              if (!ageGroup) continue;
+
+              const dobStart = ageGroup.dob_start ? new Date(ageGroup.dob_start) : null;
+              const dobEnd = ageGroup.dob_end ? new Date(ageGroup.dob_end) : null;
+
+              const inRange =
+                (!dobStart || dobDate >= dobStart) &&
+                (!dobEnd || dobDate <= dobEnd);
+
+              if (inRange && newDiv.age_group_id === ageGroup.id && newDiv.gender === sp.season_age_groups?.gender) {
+                const newDivId = newDivisionsByAgeGroupGender[`${newDiv.age_group_id}_${newDiv.gender}`];
+                if (newDivId) {
+                  newSeasonPlayerRows.push({
+                    player_id: sp.player_id,
+                    season_age_group_id: newDivId,
+                    ...(sp.club_id ? { club_id: sp.club_id } : {}),
+                  });
+                }
+                break;
+              }
+            }
+          }
+
+          if (newSeasonPlayerRows.length > 0) {
+            await tx.season_players.createMany({
+              data: newSeasonPlayerRows,
+              skipDuplicates: true,
+            });
+          }
+
+          // Store count for return
+          (season as any)._autoRegisteredCount = newSeasonPlayerRows.length;
         }
 
         return season;
@@ -150,7 +211,11 @@ export async function saveSeason(input: SeasonMutationInput) {
 
       revalidatePath("/admin/seasons");
       revalidatePath("/admin/players");
-      return { success: true, season: newSeason };
+      return {
+        success: true,
+        season: newSeason,
+        autoRegisteredCount: (newSeason as any)._autoRegisteredCount ?? 0,
+      };
     }
   } catch (error: any) {
     console.error("saveSeason Error:", error);

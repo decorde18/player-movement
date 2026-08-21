@@ -44,9 +44,10 @@ export async function getTeamsForPlacement(seasonAgeGroupId?: number) {
         include: { age_groups: true }
       }
     },
-    orderBy: {
-      teams: { name: "asc" }
-    }
+    orderBy: [
+      { sort_order: "asc" },
+      { teams: { name: "asc" } }
+    ]
   });
 
   // 3. Fetch registered players for selected age group

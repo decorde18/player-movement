@@ -54,6 +54,10 @@ export default function SeasonsAdminPage() {
 
     if (res.success) {
       await loadData();
+      const count = (res as any).autoRegisteredCount;
+      if (form.clone_from_season_id && count > 0) {
+        toast.success(`Season created! ${count} player(s) auto-registered from the previous season.`);
+      }
       return { success: true };
     }
     return { success: false, error: res.error };

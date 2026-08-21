@@ -6,6 +6,8 @@ import { Users, AlertCircle, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock, S
 import { toast } from "sonner";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
+import FilterBar from "@/components/ui/FilterBar";
+import SortControl from "@/components/ui/SortControl";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -19,6 +21,12 @@ export default function SessionRosterPage(props: PageProps) {
   const [loading, setLoading] = useState(true);
   const [showUnavailable, setShowUnavailable] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // Sort / search / filter
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortKey, setSortKey] = useState("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [attendanceFilter, setAttendanceFilter] = useState("all");
 
   // Local state to keep track of modifications before batch saving
   // Format: Record<playerId, { availabilityStatus?, attendanceStatus?, tryoutUpdates: { seasonAgeGroupId, clubId, tryoutNumber }[] }>
@@ -168,15 +176,75 @@ export default function SessionRosterPage(props: PageProps) {
     };
   });
 
-  const filteredRoster = showUnavailable 
-    ? resolvedRoster 
+  // Base filter: unavailable toggle
+  const baseRoster = showUnavailable
+    ? resolvedRoster
     : resolvedRoster.filter((r: any) => r.availability_status === "available");
+
+  // Apply search
+  const afterSearch = baseRoster.filter((r: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const name = `${r.player.first_name} ${r.player.last_name}`.toLowerCase();
+    const tryout = r.seasonAssignments?.map((sa: any) => sa.tryout_number || "").join(" ").toLowerCase();
+    return name.includes(q) || tryout.includes(q);
+  });
+
+  // Apply attendance filter
+  const afterAttendanceFilter = attendanceFilter === "all"
+    ? afterSearch
+    : afterSearch.filter((r: any) => r.attendance_status === attendanceFilter);
+
+  // Apply sort
+  const filteredRoster = [...afterAttendanceFilter].sort((a: any, b: any) => {
+    const dir = sortDirection === "asc" ? 1 : -1;
+    if (sortKey === "name") {
+      const na = `${a.player.last_name} ${a.player.first_name}`.toLowerCase();
+      const nb = `${b.player.last_name} ${b.player.first_name}`.toLowerCase();
+      return na.localeCompare(nb) * dir;
+    }
+    if (sortKey === "tryout") {
+      const ta = parseInt(a.seasonAssignments?.[0]?.tryout_number || "9999", 10);
+      const tb = parseInt(b.seasonAssignments?.[0]?.tryout_number || "9999", 10);
+      if (!isNaN(ta) && !isNaN(tb)) return (ta - tb) * dir;
+      const tsa = (a.seasonAssignments?.[0]?.tryout_number || "").toLowerCase();
+      const tsb = (b.seasonAssignments?.[0]?.tryout_number || "").toLowerCase();
+      return tsa.localeCompare(tsb) * dir;
+    }
+    if (sortKey === "attendance") {
+      const aa = a.attendance_status || "";
+      const ab = b.attendance_status || "";
+      return aa.localeCompare(ab) * dir;
+    }
+    return 0;
+  });
 
   const totalPlayers = resolvedRoster.length;
   const availablePlayers = resolvedRoster.filter((r: any) => r.availability_status === "available").length;
   const presentPlayers = resolvedRoster.filter((r: any) => r.availability_status === "available" && r.attendance_status === "present").length;
 
   const hasPendingChanges = Object.keys(pendingChanges).length > 0;
+
+  const filterGroups = [
+    {
+      id: "attendance",
+      label: "Attendance",
+      value: attendanceFilter,
+      options: [
+        { value: "all", label: "All" },
+        { value: "present", label: "Present" },
+        { value: "absent", label: "Absent" },
+        { value: "excused", label: "Excused" },
+      ],
+      onChange: setAttendanceFilter,
+    },
+  ];
+
+  const sortOptions = [
+    { value: "name", label: "Name" },
+    { value: "tryout", label: "Tryout #" },
+    { value: "attendance", label: "Attendance" },
+  ];
 
   return (
     <div className='min-h-screen bg-background text-text p-4 md:p-8 animate-fadeIn pb-24'>
@@ -229,21 +297,40 @@ export default function SessionRosterPage(props: PageProps) {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className='flex justify-between items-center px-2'>
-          <h2 className='text-lg font-bold flex items-center gap-2 text-text'>
-            <Users size={20} className='text-primary' />
-            Player Registry
-          </h2>
-          <label className='flex items-center gap-2 cursor-pointer'>
-            <input 
-              type='checkbox' 
-              checked={showUnavailable} 
-              onChange={(e) => setShowUnavailable(e.target.checked)}
-              className='rounded text-primary focus:ring-primary bg-background border-border cursor-pointer'
+        {/* Filters Row */}
+        <div className='flex flex-wrap items-center justify-between gap-3 px-2'>
+          <div className='flex items-center gap-4'>
+            <h2 className='text-base font-bold flex items-center gap-2 text-text'>
+              <Users size={17} className='text-primary' />
+              Player Registry
+            </h2>
+            <label className='flex items-center gap-1.5 cursor-pointer'>
+              <input 
+                type='checkbox' 
+                checked={showUnavailable} 
+                onChange={(e) => setShowUnavailable(e.target.checked)}
+                className='rounded text-primary focus:ring-primary bg-background border-border cursor-pointer'
+              />
+              <span className='text-xs font-bold text-muted'>Show Unavailable</span>
+            </label>
+          </div>
+          <div className='flex items-center gap-2 flex-wrap'>
+            <FilterBar
+              filters={filterGroups}
+              searchValue={searchQuery}
+              onSearchChange={setSearchQuery}
+              searchPlaceholder='Search name or tryout #...'
+              onResetFilters={() => { setSearchQuery(""); setAttendanceFilter("all"); }}
+              className='min-w-[200px]'
             />
-            <span className='text-sm font-bold text-muted'>Show Unavailable Players</span>
-          </label>
+            <SortControl
+              options={sortOptions}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onSortChange={(k, d) => { setSortKey(k); setSortDirection(d); }}
+              size='sm'
+            />
+          </div>
         </div>
 
         {/* Roster Table */}
@@ -330,26 +417,45 @@ export default function SessionRosterPage(props: PageProps) {
                           </button>
                         </td>
 
-                        {/* Session Attendance Select */}
+                        {/* Session Attendance — Checkbox + conditional Excused select */}
                         <td className='p-4 text-center align-middle'>
-                          <select
-                            disabled={!isAvailable}
-                            value={item.attendance_status}
-                            onChange={(e) => handleAttendanceChange(item.player.id, e.target.value)}
-                            className={`text-xs font-bold py-1.5 px-2 border rounded outline-none transition-all cursor-pointer ${
-                              !isAvailable 
-                                ? "opacity-50 cursor-not-allowed bg-background border-border text-muted" 
-                                : item.attendance_status === "present"
-                                  ? "bg-green-500/10 text-green-600 border-green-500/20 focus:ring-1 focus:ring-green-500/50"
-                                  : item.attendance_status === "absent"
-                                    ? "bg-danger/10 text-danger border-danger/20 focus:ring-1 focus:ring-danger/50"
-                                    : "bg-orange-500/10 text-orange-600 border-orange-500/20 focus:ring-1 focus:ring-orange-500/50"
-                            }`}
-                          >
-                            <option value='present'>✓ Present</option>
-                            <option value='absent'>✗ Absent</option>
-                            <option value='excused'>! Excused</option>
-                          </select>
+                          <div className='flex items-center justify-center gap-2'>
+                            {/* Checkbox: checked = present, unchecked = absent/excused */}
+                            <input
+                              type='checkbox'
+                              disabled={!isAvailable}
+                              checked={item.attendance_status === "present"}
+                              onChange={(e) =>
+                                handleAttendanceChange(
+                                  item.player.id,
+                                  e.target.checked ? "present" : "absent"
+                                )
+                              }
+                              className={`w-4 h-4 rounded border cursor-pointer focus:ring-primary ${
+                                !isAvailable
+                                  ? "opacity-40 cursor-not-allowed"
+                                  : item.attendance_status === "present"
+                                  ? "text-green-500 border-green-400 accent-green-500"
+                                  : "text-danger border-danger/50 accent-red-500"
+                              }`}
+                              title={item.attendance_status === "present" ? "Present" : item.attendance_status === "excused" ? "Excused" : "Absent"}
+                            />
+                            {/* When not present: show excused dropdown */}
+                            {isAvailable && item.attendance_status !== "present" && (
+                              <select
+                                value={item.attendance_status}
+                                onChange={(e) => handleAttendanceChange(item.player.id, e.target.value)}
+                                className='text-xs font-bold py-0.5 px-1.5 border rounded bg-orange-500/10 text-orange-600 border-orange-500/20 focus:outline-none cursor-pointer'
+                              >
+                                <option value='absent'>Absent</option>
+                                <option value='excused'>Excused</option>
+                              </select>
+                            )}
+                            {/* Status label when present */}
+                            {isAvailable && item.attendance_status === "present" && (
+                              <span className='text-[10px] font-bold text-green-600'>Present</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

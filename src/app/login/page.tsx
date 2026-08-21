@@ -23,12 +23,6 @@ export default function LoginPage() {
           return;
         }
       }
-
-      const res = await fetch("/api/auth/session");
-      const session = await res.json();
-      if (session?.user && process.env.NODE_ENV === "development") {
-        router.push("/");
-      }
     }
     attemptDevAutoSignIn();
   }, [router, devAutoSignIn]);

@@ -254,7 +254,16 @@ export default function EventsAdminPage() {
     );
   }
 
+  if (!data) {
+    return (
+      <div className='min-h-screen flex flex-col items-center justify-center bg-background text-text gap-3'>
+        <span className='font-bold text-muted'>Failed to load events. Please refresh the page.</span>
+      </div>
+    );
+  }
+
   const { seasons, userScope } = data;
+
 
   // Active object finders
   const activeSeason = seasons.find((s: any) => s.id === selectedSeasonId);

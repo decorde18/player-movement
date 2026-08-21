@@ -2,13 +2,12 @@
 
 import db from "@/lib/db";
 import { cookies } from "next/headers";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { getServerAuthSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { verifyAdmin } from "../auth/auth-utils";
 
 export async function getActiveClubId() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerAuthSession();
   if (!session?.user) return null;
 
   const user = session.user as any;
@@ -28,7 +27,7 @@ export async function getActiveClubId() {
 }
 
 export async function setActiveClub(clubId: string) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerAuthSession();
   if ((session?.user as any)?.role === "system_admin") {
     const cookieStore = await cookies();
     cookieStore.set("activeClubId", clubId, { path: "/" });

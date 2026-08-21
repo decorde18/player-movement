@@ -14,8 +14,12 @@ export interface UserInput {
   password?: string;
   role: "system_admin" | "club_admin" | "age_group_admin" | "coach";
   club_id?: number | null;
+  // Legacy single-field (kept for backward compat)
   assigned_age_group_id?: number | null;
   assigned_team_id?: number | null;
+  // Multi-assignment arrays (new)
+  age_group_ids?: number[];
+  season_team_ids?: number[];
 }
 
 /**
@@ -52,6 +56,26 @@ export async function getUsersDashboardData() {
             },
           },
         },
+        user_age_groups: {
+          include: {
+            age_groups: true,
+          },
+        },
+        user_season_teams: {
+          include: {
+            season_teams: {
+              include: {
+                teams: true,
+                season_age_groups: {
+                  include: {
+                    seasons: true,
+                    age_groups: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: { created_at: "desc" },
     }),
@@ -71,9 +95,11 @@ export async function getUsersDashboardData() {
           },
         },
       },
-      orderBy: {
-        teams: { name: "asc" },
-      },
+      orderBy: [
+        { season_age_groups: { age_groups: { name: "asc" } } },
+        { sort_order: "asc" },
+        { teams: { name: "asc" } },
+      ],
     }),
   ]);
 
@@ -119,17 +145,35 @@ export async function createUser(input: UserInput) {
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(rawPassword, salt);
 
-    await db.user.create({
+    const newUser = await db.user.create({
       data: {
         name: input.name,
         email: input.email,
         passwordHash: hash,
         role: input.role,
         club_id: input.role === "system_admin" ? null : input.club_id || null,
-        assigned_age_group_id: input.role === "age_group_admin" ? input.assigned_age_group_id || null : null,
-        assigned_team_id: input.role === "coach" ? input.assigned_team_id || null : null,
+        assigned_age_group_id: null,
+        assigned_team_id: null,
       },
     });
+
+    // Write multi-assignment join rows
+    const ageGroupIds = input.age_group_ids || [];
+    const seasonTeamIds = input.season_team_ids || [];
+
+    if (ageGroupIds.length > 0) {
+      await db.user_age_groups.createMany({
+        data: ageGroupIds.map((agId) => ({ user_id: newUser.id, age_group_id: agId })),
+        skipDuplicates: true,
+      });
+    }
+
+    if (seasonTeamIds.length > 0) {
+      await db.user_season_teams.createMany({
+        data: seasonTeamIds.map((stId) => ({ user_id: newUser.id, season_team_id: stId })),
+        skipDuplicates: true,
+      });
+    }
 
     revalidatePath("/admin/users");
     return { success: true };
@@ -179,8 +223,8 @@ export async function updateUser(id: number, input: UserInput) {
       email: input.email,
       role: input.role,
       club_id: input.role === "system_admin" ? null : input.club_id || null,
-      assigned_age_group_id: input.role === "age_group_admin" ? input.assigned_age_group_id || null : null,
-      assigned_team_id: input.role === "coach" ? input.assigned_team_id || null : null,
+      assigned_age_group_id: null,
+      assigned_team_id: null,
     };
 
     if (input.password) {
@@ -188,10 +232,36 @@ export async function updateUser(id: number, input: UserInput) {
       dataToUpdate.passwordHash = await bcrypt.hash(input.password, salt);
     }
 
-    await db.user.update({
-      where: { id },
-      data: dataToUpdate,
-    });
+    // Update user and replace join table rows atomically
+    const ageGroupIds = input.age_group_ids || [];
+    const seasonTeamIds = input.season_team_ids || [];
+
+    await db.$transaction([
+      db.user.update({
+        where: { id },
+        data: dataToUpdate,
+      }),
+      // Replace age group assignments
+      db.user_age_groups.deleteMany({ where: { user_id: id } }),
+      ...(ageGroupIds.length > 0
+        ? [
+            db.user_age_groups.createMany({
+              data: ageGroupIds.map((agId) => ({ user_id: id, age_group_id: agId })),
+              skipDuplicates: true,
+            }),
+          ]
+        : []),
+      // Replace season team assignments
+      db.user_season_teams.deleteMany({ where: { user_id: id } }),
+      ...(seasonTeamIds.length > 0
+        ? [
+            db.user_season_teams.createMany({
+              data: seasonTeamIds.map((stId) => ({ user_id: id, season_team_id: stId })),
+              skipDuplicates: true,
+            }),
+          ]
+        : []),
+    ]);
 
     revalidatePath("/admin/users");
     return { success: true };

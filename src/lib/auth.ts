@@ -22,6 +22,10 @@ export const authOptions: NextAuthOptions = {
         try {
           const user = await db.user.findUnique({
             where: { email: credentials.email },
+            include: {
+              user_age_groups: true,
+              user_season_teams: true,
+            },
           });
 
           if (user && user.passwordHash) {
@@ -30,17 +34,24 @@ export const authOptions: NextAuthOptions = {
             const isAgeGroupAdmin = user.role === "age_group_admin";
             const isCoach = user.role === "coach";
 
+            // Merge legacy single-field with new multi-assignment join tables
+            const ageGroupIds = [
+              ...(user.assigned_age_group_id ? [user.assigned_age_group_id] : []),
+              ...user.user_age_groups.map((r) => r.age_group_id),
+            ].filter((v, i, a) => a.indexOf(v) === i);
+
+            const coachTeamIds = [
+              ...(user.assigned_team_id ? [user.assigned_team_id] : []),
+              ...user.user_season_teams.map((r) => r.season_team_id),
+            ].filter((v, i, a) => a.indexOf(v) === i);
+
             const roles = {
               isSystemAdmin,
               isClubAdmin,
               isAgeGroupAdmin,
               isCoach,
-              ageGroupIds: (user as any).assigned_age_group_id
-                ? [(user as any).assigned_age_group_id]
-                : [],
-              coachTeamIds: user.assigned_team_id
-                ? [user.assigned_team_id]
-                : [],
+              ageGroupIds,
+              coachTeamIds,
               clubAdminTeamIds: user.club_id ? [user.club_id] : [],
             };
 
@@ -141,6 +152,10 @@ export async function getServerAuthSession(): Promise<Session | null> {
       if (!isNaN(impId)) {
         const impUser = await db.user.findUnique({
           where: { id: impId },
+          include: {
+            user_age_groups: true,
+            user_season_teams: true,
+          },
         });
 
         if (impUser) {
@@ -148,6 +163,16 @@ export async function getServerAuthSession(): Promise<Session | null> {
           const isClubAdmin = impUser.role === "club_admin";
           const isAgeGroupAdmin = impUser.role === "age_group_admin";
           const isCoach = impUser.role === "coach";
+
+          const ageGroupIds = [
+            ...(impUser.assigned_age_group_id ? [impUser.assigned_age_group_id] : []),
+            ...impUser.user_age_groups.map((r) => r.age_group_id),
+          ].filter((v, i, a) => a.indexOf(v) === i);
+
+          const coachTeamIds = [
+            ...(impUser.assigned_team_id ? [impUser.assigned_team_id] : []),
+            ...impUser.user_season_teams.map((r) => r.season_team_id),
+          ].filter((v, i, a) => a.indexOf(v) === i);
 
           return {
             user: {
@@ -164,12 +189,8 @@ export async function getServerAuthSession(): Promise<Session | null> {
                 isClubAdmin,
                 isAgeGroupAdmin,
                 isCoach,
-                ageGroupIds: impUser.assigned_age_group_id
-                  ? [impUser.assigned_age_group_id]
-                  : [],
-                coachTeamIds: impUser.assigned_team_id
-                  ? [impUser.assigned_team_id]
-                  : [],
+                ageGroupIds,
+                coachTeamIds,
                 clubAdminTeamIds: impUser.club_id ? [impUser.club_id] : [],
               },
             },

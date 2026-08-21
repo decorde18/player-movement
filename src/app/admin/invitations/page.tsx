@@ -10,7 +10,6 @@ import {
   bulkSendInvitations 
 } from "./actions";
 import Button from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
 import FilterBar from "@/components/ui/FilterBar";
 import SortControl from "@/components/ui/SortControl";
@@ -367,125 +366,86 @@ export default function RosterInvitationsPage() {
   };
 
   return (
-    <div className='w-full flex-1 flex flex-col min-h-0 animate-fadeIn relative space-y-4 pb-2'>
+    <div className='w-full flex-1 flex flex-col min-h-0 animate-fadeIn relative space-y-3 pb-2'>
       
-      {/* Top Header Controls Group */}
-      <div className='shrink-0 space-y-4'>
-        <div className='flex flex-wrap items-center justify-between gap-4 bg-surface/60 border border-border p-4 rounded-2xl shadow-sm backdrop-blur-md'>
-          <div className='flex items-center gap-3'>
-            <Link
-              href={`/admin/events`}
-              className='p-2 rounded-lg border border-border bg-background text-muted hover:text-text transition-all cursor-pointer'
+      {/* Compact Header */}
+      <div className='shrink-0 space-y-2'>
+        {/* Row 1: Title + Age/Team pickers + Board link */}
+        <div className='flex flex-wrap items-center gap-2 bg-surface/60 border border-border px-3 py-2 rounded-xl shadow-sm backdrop-blur-md'>
+          <Link
+            href={`/admin/events`}
+            className='p-1.5 rounded-lg border border-border bg-background text-muted hover:text-text transition-all shrink-0'
+          >
+            <ArrowLeft size={14} />
+          </Link>
+
+          <div className='flex items-center gap-1.5 mr-2'>
+            <Mail className='text-purple-600' size={15} />
+            <h1 className='text-sm font-extrabold text-text'>Team Invitations &amp; Uniforms</h1>
+          </div>
+
+          {/* Divider */}
+          <div className='hidden sm:block w-px h-5 bg-border mx-1' />
+
+          {/* Age Group Picker */}
+          <div className='flex items-center gap-1.5'>
+            <span className='text-[10px] font-bold text-muted uppercase tracking-wider hidden sm:block'>Age Group:</span>
+            <select
+              value={selectedAgeGroupId || ""}
+              onChange={(e) => handleAgeGroupChange(Number(e.target.value))}
+              className='text-xs font-bold bg-background border border-border rounded-lg px-2 py-1 text-text focus:outline-none cursor-pointer'
             >
-              <ArrowLeft size={16} />
-            </Link>
-            <div>
-              <span className='text-[10px] font-extrabold uppercase bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full border border-purple-500/20'>
-                Team Management & Roster
-              </span>
-              <h1 className='text-xl font-extrabold text-text mt-0.5 flex items-center gap-2'>
-                <Mail className='text-purple-600' size={20} />
-                Team Invitations & Uniforms
-              </h1>
-            </div>
+              {seasonAgeGroups.map((sag: any) => (
+                <option key={sag.id} value={sag.id}>
+                  {sag.name} ({sag.gender})
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className='flex items-center gap-3 flex-wrap'>
-            <div className='flex items-center gap-2'>
-              <span className='text-xs font-bold text-muted uppercase tracking-wider'>Age Group:</span>
-              <select
-                value={selectedAgeGroupId || ""}
-                onChange={(e) => handleAgeGroupChange(Number(e.target.value))}
-                className='text-xs font-extrabold bg-background border border-border rounded-xl px-3 py-2 text-text focus:outline-none cursor-pointer'
-              >
-                {seasonAgeGroups.map((sag: any) => (
-                  <option key={sag.id} value={sag.id}>
-                    {sag.name} ({sag.gender}) — {sag.age_groups?.name || ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className='flex items-center gap-2'>
-              <span className='text-xs font-bold text-muted uppercase tracking-wider'>Team:</span>
-              <select
-                value={selectedTeamId}
-                onChange={(e) => setSelectedTeamId(e.target.value)}
-                className='text-xs font-extrabold bg-background border border-border rounded-xl px-3 py-2 text-text focus:outline-none cursor-pointer'
-              >
-                <option value='all'>All Teams</option>
-                {seasonTeams.map((st: any) => (
-                  <option key={st.id} value={st.id.toString()}>
-                    {st.teams?.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <Link href='/admin/teams/placement'>
-              <Button variant='outline' size='sm' className='font-bold text-xs flex items-center gap-1.5 border-blue-500/30 text-blue-600 hover:bg-blue-500/10'>
-                <Shirt size={15} />
-                <span>Team Board</span>
-              </Button>
-            </Link>
+          {/* Team Picker */}
+          <div className='flex items-center gap-1.5'>
+            <span className='text-[10px] font-bold text-muted uppercase tracking-wider hidden sm:block'>Team:</span>
+            <select
+              value={selectedTeamId}
+              onChange={(e) => setSelectedTeamId(e.target.value)}
+              className='text-xs font-bold bg-background border border-border rounded-lg px-2 py-1 text-text focus:outline-none cursor-pointer'
+            >
+              <option value='all'>All Teams</option>
+              {seasonTeams.map((st: any) => (
+                <option key={st.id} value={st.id.toString()}>
+                  {st.teams?.name}
+                </option>
+              ))}
+            </select>
           </div>
+
+          <Link href='/admin/teams/placement' className='ml-auto'>
+            <Button variant='outline' size='sm' className='font-bold text-xs flex items-center gap-1 border-blue-500/30 text-blue-600 hover:bg-blue-500/10 py-1 h-auto'>
+              <Shirt size={12} />
+              <span>Team Board</span>
+            </Button>
+          </Link>
         </div>
 
-        {/* Stats Ribbon */}
-        <div className='grid grid-cols-2 md:grid-cols-5 gap-3'>
-          <Card className='p-3 bg-surface/50 border-border flex items-center justify-between'>
-            <div>
-              <span className='text-[10px] font-extrabold uppercase text-muted tracking-wider block'>Total Roster</span>
-              <span className='text-lg font-black text-text block mt-0.5'>{totalRoster}</span>
-            </div>
-            <div className='w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center'>
-              <Users size={16} />
-            </div>
-          </Card>
-
-          <Card className='p-3 bg-surface/50 border-border flex items-center justify-between'>
-            <div>
-              <span className='text-[10px] font-extrabold uppercase text-muted tracking-wider block'>Pending</span>
-              <span className='text-lg font-black text-amber-500 block mt-0.5'>{pendingCount}</span>
-            </div>
-            <div className='w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center'>
-              <Clock size={16} />
-            </div>
-          </Card>
-
-          <Card className='p-3 bg-surface/50 border-border flex items-center justify-between'>
-            <div>
-              <span className='text-[10px] font-extrabold uppercase text-muted tracking-wider block'>Accepted</span>
-              <span className='text-lg font-black text-emerald-500 block mt-0.5'>{acceptedCount}</span>
-            </div>
-            <div className='w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center'>
-              <CheckCircle2 size={16} />
-            </div>
-          </Card>
-
-          <Card className='p-3 bg-surface/50 border-border flex items-center justify-between'>
-            <div>
-              <span className='text-[10px] font-extrabold uppercase text-muted tracking-wider block'>Declined</span>
-              <span className='text-lg font-black text-red-500 block mt-0.5'>{declinedCount}</span>
-            </div>
-            <div className='w-8 h-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center'>
-              <XCircle size={16} />
-            </div>
-          </Card>
-
-          <Card className='p-3 bg-surface/50 border-border flex items-center justify-between col-span-2 md:col-span-1'>
-            <div>
-              <span className='text-[10px] font-extrabold uppercase text-muted tracking-wider block'>Uniforms Set</span>
-              <span className='text-lg font-black text-purple-600 block mt-0.5'>{uniformAssignedCount}</span>
-            </div>
-            <div className='w-8 h-8 rounded-lg bg-purple-500/10 text-purple-600 flex items-center justify-center'>
-              <Shirt size={16} />
-            </div>
-          </Card>
+        {/* Row 2: Stat pills inline */}
+        <div className='flex flex-wrap items-center gap-2 px-1'>
+          {[
+            { label: "Total", value: totalRoster, color: "text-text", bg: "bg-surface" },
+            { label: "Pending", value: pendingCount, color: "text-amber-500", bg: "bg-amber-500/10" },
+            { label: "Accepted", value: acceptedCount, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+            { label: "Declined", value: declinedCount, color: "text-red-500", bg: "bg-red-500/10" },
+            { label: "Uniforms", value: uniformAssignedCount, color: "text-purple-600", bg: "bg-purple-500/10" },
+          ].map((stat) => (
+            <span key={stat.label} className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold px-2 py-1 rounded-full border border-border ${stat.bg}`}>
+              <span className={stat.color}>{stat.value}</span>
+              <span className='text-muted'>{stat.label}</span>
+            </span>
+          ))}
         </div>
 
-        {/* FilterBar & Sort Control */}
-        <div className='flex flex-wrap items-center justify-between gap-4'>
+        {/* Row 3: FilterBar + Sort */}
+        <div className='flex flex-wrap items-center justify-between gap-3'>
           <FilterBar
             filters={filterGroups}
             searchValue={searchQuery}
@@ -510,23 +470,23 @@ export default function RosterInvitationsPage() {
 
         {/* Floating Bulk Action Toolbar */}
         {selectedPlayerIds.size > 0 && (
-          <div className='sticky top-0 z-40 bg-surface/95 border-2 border-purple-500/40 shadow-2xl p-4 rounded-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-4 animate-slideUp'>
+          <div className='sticky top-0 z-40 bg-surface/95 border-2 border-purple-500/40 shadow-2xl p-3 rounded-xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3 animate-slideUp'>
             <div className='flex items-center gap-2 text-xs font-bold text-text'>
-              <span className='w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center text-xs font-black'>
+              <span className='w-5 h-5 rounded-lg bg-purple-600 text-white flex items-center justify-center text-xs font-black'>
                 {selectedPlayerIds.size}
               </span>
               <span>Player{selectedPlayerIds.size > 1 ? "s" : ""} Selected</span>
             </div>
 
-            <div className='flex items-center gap-3 flex-wrap'>
+            <div className='flex items-center gap-2 flex-wrap'>
               <Button
                 variant='primary'
                 size='sm'
                 onClick={handleBulkSend}
                 disabled={isPending}
-                className='flex items-center gap-1.5 font-bold text-xs bg-purple-600 hover:bg-purple-700 text-white border-none'
+                className='flex items-center gap-1 font-bold text-xs bg-purple-600 hover:bg-purple-700 text-white border-none'
               >
-                <Send size={14} />
+                <Send size={12} />
                 <span>Bulk Send Invitations</span>
               </Button>
 
@@ -534,8 +494,8 @@ export default function RosterInvitationsPage() {
                 onClick={() => setSelectedPlayerIds(new Set())}
                 className='text-xs font-bold text-muted hover:text-text flex items-center gap-1 p-1 cursor-pointer'
               >
-                <X size={14} />
-                <span>Clear Selection</span>
+                <X size={12} />
+                <span>Clear</span>
               </button>
             </div>
           </div>

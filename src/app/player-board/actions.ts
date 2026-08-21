@@ -5,14 +5,17 @@ import { getServerAuthSession } from "@/lib/auth";
 import { getScopeFilters } from "@/lib/permissions";
 import { getActiveClubId } from "@/lib/actions/clubs";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 /**
  * Fetch all dropdown options for selectors (Seasons, Events, Sessions, Divisions)
  */
 export async function getSelectorData() {
   const session = await getServerAuthSession();
+  if (!session?.user) redirect("/login");
   const activeClubId = await getActiveClubId();
   const scope = getScopeFilters(session, activeClubId);
+
 
   const seasonFilter = scope.filters.season();
   const eventFilter = scope.filters.event();

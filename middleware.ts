@@ -35,16 +35,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const authToken = token as unknown as {
-    roles?: { isSystemAdmin?: boolean };
-  };
- 
-  if (pathname.startsWith("/admin") && !authToken.roles?.isSystemAdmin) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
-
   return NextResponse.next();
 }
 

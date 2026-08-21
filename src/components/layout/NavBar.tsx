@@ -9,13 +9,14 @@ import {
   Calendar, 
   Layers, 
   Award, 
-  ClipboardList, 
+  ClipboardList,
+  ClipboardCheck,
   LogOut, 
   LayoutDashboard,
   Kanban,
   Mail
 } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -46,6 +47,26 @@ function NavBar({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sessionRosterHref, setSessionRosterHref] = useState("/admin/sessions");
+
+  // Smart session roster link: go directly to today's session if exactly one exists
+  const resolveSessionRosterHref = useCallback(async () => {
+    try {
+      const res = await fetch("/api/sessions/today");
+      const data = await res.json();
+      if (data.sessions?.length === 1) {
+        setSessionRosterHref(`/admin/sessions/${data.sessions[0].id}`);
+      } else {
+        setSessionRosterHref("/admin/sessions");
+      }
+    } catch {
+      setSessionRosterHref("/admin/sessions");
+    }
+  }, []);
+
+  useEffect(() => {
+    resolveSessionRosterHref();
+  }, [resolveSessionRosterHref]);
 
   // Auto-manage sidebar visibility on desktop resize
   useEffect(() => {
@@ -154,6 +175,13 @@ function NavBar({
       path: "/admin/events",
       icon: <Award size={18} />,
       visible: userRole !== "coach", // visible to system_admin, club_admin, age_group_admin
+    },
+    {
+      id: "session-roster",
+      label: "Session Roster",
+      path: sessionRosterHref,
+      icon: <ClipboardCheck size={18} />,
+      visible: true,
     },
     {
       id: "player-board",
@@ -305,7 +333,11 @@ function NavBar({
           {navItems
             .filter((item) => item.visible)
             .map((item) => {
-              const isActive = pathname === item.path;
+              // Session roster can resolve to a dynamic /admin/sessions/[id] — treat base path as active check
+              const isActive =
+                item.id === "session-roster"
+                  ? pathname.startsWith("/admin/sessions")
+                  : pathname === item.path;
               return (
                 <Link
                   key={item.id}

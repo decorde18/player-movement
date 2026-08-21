@@ -42,9 +42,10 @@ export async function getRosterInvitations(seasonAgeGroupId?: number, seasonTeam
         include: { age_groups: true }
       }
     },
-    orderBy: {
-      teams: { name: "asc" }
-    }
+    orderBy: [
+      { sort_order: "asc" },
+      { teams: { name: "asc" } }
+    ]
   });
 
   // 3. Filter by season_team_id if provided
