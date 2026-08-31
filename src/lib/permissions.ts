@@ -180,7 +180,9 @@ export function getScopeFilters(
             filter.season_players = {
               some: {
                 ...(clubId ? { club_id: clubId } : {}),
-                season_age_group_id: { in: allowedAgeGroupIds },
+                season_age_groups: {
+                  age_group_id: { in: allowedAgeGroupIds },
+                },
               },
             };
           } else if (clubId) {
@@ -200,7 +202,7 @@ export function getScopeFilters(
           }
           if (allowedAgeGroupIds.length > 0) {
             filter.OR = [
-              { season_age_groups: { some: { id: { in: allowedAgeGroupIds } } } },
+              { season_age_groups: { some: { age_group_id: { in: allowedAgeGroupIds } } } },
               { season_age_groups: { none: {} } },
             ];
           }
@@ -211,7 +213,9 @@ export function getScopeFilters(
           if (allowedAgeGroupIds.length > 0) {
             filter.event_divisions = {
               some: {
-                season_age_group_id: { in: allowedAgeGroupIds },
+                season_age_groups: {
+                  age_group_id: { in: allowedAgeGroupIds },
+                },
               },
             };
           } else if (clubId) {
@@ -227,7 +231,9 @@ export function getScopeFilters(
             filter.events = {
               event_divisions: {
                 some: {
-                  season_age_group_id: { in: allowedAgeGroupIds },
+                  season_age_groups: {
+                    age_group_id: { in: allowedAgeGroupIds },
+                  },
                 },
               },
             };
@@ -244,7 +250,9 @@ export function getScopeFilters(
           const filter: any = {};
           if (clubId) filter.club_id = clubId;
           if (allowedAgeGroupIds.length > 0) {
-            filter.season_age_group_id = { in: allowedAgeGroupIds };
+            filter.season_age_groups = {
+              age_group_id: { in: allowedAgeGroupIds },
+            };
           }
           return filter;
         },
