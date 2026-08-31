@@ -77,7 +77,7 @@ export default function SeasonsAdminPage() {
       {
         season_id: Number(parentId),
         age_group_id: Number(childForm.age_group_id),
-        gender: childForm.gender || "Boy",
+        gender: childForm.gender || "Male",
       },
       Number(parentId),
     );
@@ -130,7 +130,7 @@ export default function SeasonsAdminPage() {
                 key={sp.id}
                 className='px-2 py-0.5 bg-background border border-border text-text-label font-bold rounded'
               >
-                {sp.age_groups?.name} ({sp.gender})
+                {sp.age_groups?.name} ({sp.gender === "Boys" ? "Male" : sp.gender === "Girls" ? "Female" : sp.gender})
               </span>
             ))
           ) : (
@@ -165,8 +165,8 @@ export default function SeasonsAdminPage() {
           type: "select",
           required: true,
           options: [
-            { value: "Boy", label: "Boy" },
-            { value: "Girl", label: "Girl" },
+            { value: "Male", label: "Male" },
+            { value: "Female", label: "Female" },
             { value: "Coed", label: "Coed" },
           ],
         },

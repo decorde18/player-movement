@@ -29,6 +29,24 @@ export async function getSeasonsDashboardData() {
   const session = await getServerAuthSession();
   const activeClubId = await getActiveClubId();
   const scope = getScopeFilters(session, activeClubId);
+
+  // Backfill club_seasons for any seasons missing club associations so they show up under club scope
+  const allClubs = await db.clubs.findMany({ select: { id: true } });
+  if (allClubs.length > 0) {
+    const unlinkedSeasons = await db.seasons.findMany({
+      where: { club_seasons: { none: {} } },
+      select: { id: true },
+    });
+    if (unlinkedSeasons.length > 0) {
+      await db.club_seasons.createMany({
+        data: unlinkedSeasons.flatMap((s) =>
+          allClubs.map((c) => ({ club_id: c.id, season_id: s.id }))
+        ),
+        skipDuplicates: true,
+      });
+    }
+  }
+
   const seasonFilter = scope.filters.season();
 
   const [seasons, ageGroups] = await Promise.all([
@@ -57,6 +75,62 @@ export async function getSeasonsDashboardData() {
       isSystemAdmin: scope.isSystemAdmin,
     },
   };
+}
+
+export async function ensureStandard2008To2018Divisions(tx: any, seasonId: number) {
+  const years = [2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018];
+  const genders = ["Male", "Female"];
+
+  for (const year of years) {
+    let ageGroup = await tx.age_groups.findFirst({
+      where: {
+        cutoff_type: "calendar",
+        dob_start: new Date(`${year}-01-01`),
+        dob_end: new Date(`${year}-12-31`),
+      },
+    });
+
+    if (!ageGroup) {
+      ageGroup = await tx.age_groups.create({
+        data: {
+          name: `${year}`,
+          dob_start: new Date(`${year}-01-01`),
+          dob_end: new Date(`${year}-12-31`),
+          cutoff_type: "calendar",
+        },
+      });
+    } else if (
+      ageGroup.name.includes(" (1/1 - 12/31)") ||
+      ageGroup.name.includes(" Girls") ||
+      ageGroup.name.includes(" Boys")
+    ) {
+      await tx.age_groups.update({
+        where: { id: ageGroup.id },
+        data: { name: `${year}` },
+      });
+    }
+
+    for (const gender of genders) {
+      const existingDiv = await tx.season_age_groups.findFirst({
+        where: {
+          season_id: seasonId,
+          age_group_id: ageGroup.id,
+          gender: gender,
+        },
+      });
+
+      if (!existingDiv) {
+        await tx.season_age_groups.create({
+          data: {
+            season_id: seasonId,
+            age_group_id: ageGroup.id,
+            gender: gender,
+            name: `${year} ${gender}`,
+          },
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -204,13 +278,19 @@ export async function saveSeason(input: SeasonMutationInput) {
 
           // Store count for return
           (season as any)._autoRegisteredCount = newSeasonPlayerRows.length;
+        } else {
+          // Default: Auto-populate standard 2008-2018 divisions (Male & Female)
+          await ensureStandard2008To2018Divisions(tx, season.id);
         }
 
         return season;
       });
 
+      revalidatePath("/", "layout");
+      revalidatePath("/admin");
       revalidatePath("/admin/seasons");
       revalidatePath("/admin/players");
+      revalidatePath("/admin/events");
       return {
         success: true,
         season: newSeason,
@@ -247,8 +327,11 @@ export async function deleteSeason(seasonId: number) {
       where: { id: seasonId },
     });
 
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
     revalidatePath("/admin/seasons");
     revalidatePath("/admin/players");
+    revalidatePath("/admin/events");
     return { success: true };
   } catch (error: any) {
     console.error("deleteSeason Error:", error);
@@ -304,8 +387,11 @@ export async function saveSeasonAgeGroup(input: SeasonAgeGroupMutationInput, par
       },
     });
 
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
     revalidatePath("/admin/seasons");
     revalidatePath("/admin/players");
+    revalidatePath("/admin/events");
     return { success: true, division };
   } catch (error: any) {
     console.error("saveSeasonAgeGroup Error:", error);
@@ -337,8 +423,11 @@ export async function deleteSeasonAgeGroup(id: number) {
       where: { id },
     });
 
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
     revalidatePath("/admin/seasons");
     revalidatePath("/admin/players");
+    revalidatePath("/admin/events");
     return { success: true };
   } catch (error: any) {
     console.error("deleteSeasonAgeGroup Error:", error);

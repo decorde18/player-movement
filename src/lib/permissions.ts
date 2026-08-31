@@ -199,9 +199,10 @@ export function getScopeFilters(
             filter.club_seasons = { some: { club_id: clubId } };
           }
           if (allowedAgeGroupIds.length > 0) {
-            filter.season_age_groups = {
-              some: { id: { in: allowedAgeGroupIds } },
-            };
+            filter.OR = [
+              { season_age_groups: { some: { id: { in: allowedAgeGroupIds } } } },
+              { season_age_groups: { none: {} } },
+            ];
           }
           return filter;
         },

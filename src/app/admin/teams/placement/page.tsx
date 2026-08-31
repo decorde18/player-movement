@@ -714,7 +714,7 @@ export default function StandaloneTeamPlacementPage() {
               type='text'
               value={newTeamName}
               onChange={(e) => setNewTeamName(e.target.value)}
-              placeholder='e.g., 2012 Boys Gold, 2012 Boys Premier'
+              placeholder='e.g., 2012 Male Gold, 2012 Male Premier'
               className='w-full bg-background border border-border rounded-xl p-2.5 text-xs font-bold text-text focus:outline-none focus:border-blue-500'
               autoFocus
             />

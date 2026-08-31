@@ -195,20 +195,22 @@ export default function SeasonsAdminPage() {
           type: "select",
           required: true,
           options: [
-            { value: "Boys", label: "Boys" },
-            { value: "Girls", label: "Girls" },
+            { value: "Male", label: "Male" },
+            { value: "Female", label: "Female" },
             { value: "Coed", label: "Coed" },
           ],
           render: (child: any) => {
-            const color =
-              child.gender === "Boys"
-                ? "text-blue-600 bg-blue-50 border-blue-200"
-                : child.gender === "Girls"
-                  ? "text-pink-600 bg-pink-50 border-pink-200"
-                  : "text-emerald-600 bg-emerald-50 border-emerald-200";
+            const isMale = child.gender === "Male" || child.gender === "Boys";
+            const isFemale = child.gender === "Female" || child.gender === "Girls";
+            const color = isMale
+              ? "text-blue-600 bg-blue-50 border-blue-200"
+              : isFemale
+                ? "text-pink-600 bg-pink-50 border-pink-200"
+                : "text-emerald-600 bg-emerald-50 border-emerald-200";
+            const displayGender = isMale ? "Male" : isFemale ? "Female" : child.gender;
             return (
               <span className={`px-2 py-0.5 rounded-full text-[0.65rem] font-bold border ${color}`}>
-                {child.gender}
+                {displayGender}
               </span>
             );
           },
@@ -223,7 +225,7 @@ export default function SeasonsAdminPage() {
     <CrudDashboard
       title='Seasons Management'
       icon={<Calendar size={32} className='text-primary' />}
-      description='Create seasons, specify age group cutoff preferences (defaulting to 8/1–7/31), and configure divisions for Boys and Girls.'
+      description='Create seasons, specify age group cutoff preferences (defaulting to 8/1–7/31), and configure divisions for Male and Female.'
       items={seasons}
       columns={columns}
       onSave={handleSave}
