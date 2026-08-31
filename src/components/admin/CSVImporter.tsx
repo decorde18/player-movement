@@ -654,7 +654,7 @@ function normalizePositionValue(val: string): string {
             </label>
             <textarea
               className='font-mono text-xs w-full h-44 p-3 border border-border rounded-xl bg-background/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all resize-y'
-              placeholder={"first_name,last_name,dob,gender,tryout_num,position,rating\nJohn,Doe,2014-05-12,Boy,102,Midfielder,8\nJane,Smith,2015-08-22,Girl,204,Forward,7"}
+              placeholder={"first_name,last_name,dob,gender,tryout_num,position,rating\nJohn,Doe,2014-05-12,Male,102,Midfielder,8\nJane,Smith,2015-08-22,Female,204,Forward,7"}
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
             />

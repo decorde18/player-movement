@@ -5,6 +5,7 @@ import {
   getEventsDashboardData,
   createSeason,
   createEvent,
+  updateEvent,
   createSession,
   deleteEvent,
   deleteSession,
@@ -15,6 +16,7 @@ import Modal from "@/components/ui/Modal";
 import {
   CalendarRange,
   Plus,
+  Edit2,
   Trash2,
   CalendarDays,
   Target,
@@ -124,6 +126,45 @@ export default function EventsAdminPage() {
 
   const [eventScopeType, setEventScopeType] = useState<"division" | "team">("division");
   const [selectedTeamIdForEvent, setSelectedTeamIdForEvent] = useState<string>("");
+
+  // Edit Event State
+  const [editingEvent, setEditingEvent] = useState<any | null>(null);
+  const [editEventName, setEditEventName] = useState("");
+  const [editEventType, setEditEventType] = useState<"tryout" | "ranking">("tryout");
+  const [editDivisionIds, setEditDivisionIds] = useState<number[]>([]);
+
+  const handleStartEditEvent = (evtItem: any) => {
+    setEditingEvent(evtItem);
+    setEditEventName(evtItem.name);
+    setEditEventType(evtItem.event_type || "tryout");
+    setEditDivisionIds(evtItem.event_divisions?.map((ed: any) => ed.season_age_group_id) || []);
+  };
+
+  const handleUpdateEventSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEvent) return;
+    if (!editEventName.trim()) {
+      toast.error("Event Name is required.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await updateEvent({
+        id: editingEvent.id,
+        name: editEventName,
+        event_type: editEventType,
+        season_age_group_ids: editDivisionIds,
+      });
+
+      if (res.success) {
+        toast.success(`Event "${editEventName}" updated successfully.`);
+        setEditingEvent(null);
+        loadData();
+      } else {
+        toast.error(res.error || "Failed to update event.");
+      }
+    });
+  };
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -567,12 +608,14 @@ export default function EventsAdminPage() {
                             <div className='grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto p-1 bg-background rounded-lg border border-border'>
                               {seasonDivisions.map((div: any) => {
                                 const isSelected = selectedDivisionIds.includes(div.id);
-                                const genderColor =
-                                  div.gender === "Boys"
-                                    ? "text-blue-500"
-                                    : div.gender === "Girls"
-                                      ? "text-pink-500"
-                                      : "text-emerald-500";
+                                const isMale = div.gender === "Male" || div.gender === "Boys";
+                                const isFemale = div.gender === "Female" || div.gender === "Girls";
+                                const genderColor = isMale
+                                  ? "text-blue-500"
+                                  : isFemale
+                                    ? "text-pink-500"
+                                    : "text-emerald-500";
+                                const displayGender = isMale ? "Male" : isFemale ? "Female" : div.gender;
                                 return (
                                   <button
                                     key={div.id}
@@ -590,7 +633,7 @@ export default function EventsAdminPage() {
                                       <Square size={14} className='text-muted/40 flex-shrink-0' />
                                     )}
                                     <span>{div.age_groups?.name || div.name}</span>
-                                    <span className={`${genderColor} text-[0.55rem]`}>({div.gender})</span>
+                                    <span className={`${genderColor} text-[0.55rem]`}>({displayGender})</span>
                                   </button>
                                 );
                               })}
@@ -661,18 +704,20 @@ export default function EventsAdminPage() {
                         {e.event_divisions && e.event_divisions.length > 0 && (
                           <div className='flex flex-wrap gap-1 mt-1.5'>
                             {e.event_divisions.map((ed: any) => {
-                              const genderColor =
-                                ed.season_age_groups?.gender === "Boys"
-                                  ? "bg-blue-50 text-blue-600 border-blue-200"
-                                  : ed.season_age_groups?.gender === "Girls"
-                                    ? "bg-pink-50 text-pink-600 border-pink-200"
-                                    : "bg-emerald-50 text-emerald-600 border-emerald-200";
+                              const isMale = ed.season_age_groups?.gender === "Male" || ed.season_age_groups?.gender === "Boys";
+                              const isFemale = ed.season_age_groups?.gender === "Female" || ed.season_age_groups?.gender === "Girls";
+                              const genderColor = isMale
+                                ? "bg-blue-50 text-blue-600 border-blue-200"
+                                : isFemale
+                                  ? "bg-pink-50 text-pink-600 border-pink-200"
+                                  : "bg-emerald-50 text-emerald-600 border-emerald-200";
+                              const displayGender = isMale ? "Male" : isFemale ? "Female" : ed.season_age_groups?.gender;
                               return (
                                 <span
                                   key={`${ed.event_id}-${ed.season_age_group_id}`}
                                   className={`px-1.5 py-0.5 text-[0.55rem] font-bold rounded-full border ${genderColor}`}
                                 >
-                                  {ed.season_age_groups?.age_groups?.name || "?"} ({ed.season_age_groups?.gender})
+                                  {ed.season_age_groups?.age_groups?.name || "?"} ({displayGender})
                                 </span>
                               );
                             })}
@@ -691,16 +736,28 @@ export default function EventsAdminPage() {
                           </Link>
                         </div>
 
-                        <button
-                          onClick={(evt) => {
-                            evt.stopPropagation();
-                            handleDeleteEvent(e.id, e.name);
-                          }}
-                          className='absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted/40 hover:text-danger hover:bg-danger/10 transition-all opacity-0 group-hover/item:opacity-100 cursor-pointer'
-                          title='Delete Event'
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className='absolute right-2 top-3 flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-all'>
+                          <button
+                            onClick={(evt) => {
+                              evt.stopPropagation();
+                              handleStartEditEvent(e);
+                            }}
+                            className='p-1.5 rounded-lg text-muted/60 hover:text-primary hover:bg-primary/10 transition-all cursor-pointer'
+                            title='Edit Event'
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            onClick={(evt) => {
+                              evt.stopPropagation();
+                              handleDeleteEvent(e.id, e.name);
+                            }}
+                            className='p-1.5 rounded-lg text-muted/60 hover:text-danger hover:bg-danger/10 transition-all cursor-pointer'
+                            title='Delete Event'
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -909,6 +966,102 @@ export default function EventsAdminPage() {
           </span>
         </p>
       </Modal>
+
+      {/* Modal Dialog for Editing Event */}
+      {editingEvent && (
+        <Modal
+          isOpen={!!editingEvent}
+          onClose={() => setEditingEvent(null)}
+          title={`Edit Event: ${editingEvent.name}`}
+          className='max-w-md'
+        >
+          <form onSubmit={handleUpdateEventSubmit} className='space-y-4 mt-3'>
+            <div>
+              <label className='block text-xs font-bold text-text-label mb-1'>Event Name</label>
+              <Input
+                placeholder='Event Name (e.g. 2026 Fall Tryouts)'
+                value={editEventName}
+                onChange={(e) => setEditEventName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div>
+              <label className='block text-xs font-bold text-text-label mb-1'>Event Type</label>
+              <select
+                value={editEventType}
+                onChange={(e) => setEditEventType(e.target.value as "tryout" | "ranking")}
+                className='w-full text-xs font-semibold bg-surface py-2 px-3 border border-border rounded-lg outline-none focus:ring-1 focus:ring-primary'
+              >
+                <option value='tryout'>Tryout Event</option>
+                <option value='ranking'>Ranking / Evaluation Event</option>
+              </select>
+            </div>
+
+            <div>
+              <label className='block text-xs font-bold text-text-label mb-1.5'>
+                Target Divisions / Age Groups
+              </label>
+              {seasonDivisions.length === 0 ? (
+                <p className='text-xs text-muted italic'>No divisions configured for this season.</p>
+              ) : (
+                <div className='grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto p-2 bg-background rounded-lg border border-border'>
+                  {seasonDivisions.map((div: any) => {
+                    const isSelected = editDivisionIds.includes(div.id);
+                    const isMale = div.gender === "Male" || div.gender === "Boys";
+                    const isFemale = div.gender === "Female" || div.gender === "Girls";
+                    const genderColor = isMale
+                      ? "text-blue-500"
+                      : isFemale
+                        ? "text-pink-500"
+                        : "text-emerald-500";
+                    const displayGender = isMale ? "Male" : isFemale ? "Female" : div.gender;
+                    return (
+                      <button
+                        key={div.id}
+                        type='button'
+                        onClick={() =>
+                          setEditDivisionIds((prev) =>
+                            prev.includes(div.id) ? prev.filter((id) => id !== div.id) : [...prev, div.id]
+                          )
+                        }
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[0.65rem] font-semibold transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-primary/10 text-primary border border-primary/30"
+                            : "hover:bg-background text-text border border-transparent"
+                        }`}
+                      >
+                        {isSelected ? (
+                          <CheckSquare size={14} className='text-primary flex-shrink-0' />
+                        ) : (
+                          <Square size={14} className='text-muted/40 flex-shrink-0' />
+                        )}
+                        <span>{div.age_groups?.name || div.name}</span>
+                        <span className={`${genderColor} text-[0.55rem]`}>({displayGender})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className='flex gap-2 pt-3 justify-end border-t border-border'>
+              <Button
+                variant='outline'
+                size='sm'
+                type='button'
+                onClick={() => setEditingEvent(null)}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button variant='primary' size='sm' type='submit' disabled={isPending}>
+                {isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
     </div>
   );

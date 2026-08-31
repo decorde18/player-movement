@@ -36,6 +36,24 @@ export async function getEventsDashboardData() {
   const session = await getServerAuthSession();
   const activeClubId = await getActiveClubId();
   const scope = getScopeFilters(session, activeClubId);
+
+  // Backfill club_seasons for any seasons missing club associations
+  const allClubs = await db.clubs.findMany({ select: { id: true } });
+  if (allClubs.length > 0) {
+    const unlinkedSeasons = await db.seasons.findMany({
+      where: { club_seasons: { none: {} } },
+      select: { id: true },
+    });
+    if (unlinkedSeasons.length > 0) {
+      await db.club_seasons.createMany({
+        data: unlinkedSeasons.flatMap((s) =>
+          allClubs.map((c) => ({ club_id: c.id, season_id: s.id }))
+        ),
+        skipDuplicates: true,
+      });
+    }
+  }
+
   const seasonFilter = scope.filters.season();
 
   const cookieStore = await cookies();
@@ -87,7 +105,7 @@ export async function getEventsDashboardData() {
         },
       },
     },
-    orderBy: { start_date: "desc" },
+    orderBy: [{ created_at: "desc" }, { id: "desc" }],
   });
 
   const seasonTeams = await db.season_teams.findMany({
@@ -113,6 +131,16 @@ export async function getEventsDashboardData() {
   };
 }
 
+import { ensureStandard2008To2018Divisions } from "@/app/admin/seasons/actions";
+
+export interface EventUpdateInput {
+  id: number;
+  name?: string;
+  event_type?: "tryout" | "ranking";
+  season_age_group_ids?: number[];
+  season_team_id?: number;
+}
+
 /**
  * Creates a new Season. Under club scope, it also creates the club_seasons link.
  */
@@ -134,20 +162,29 @@ export async function createSeason(input: SeasonInput) {
         },
       });
 
-      // 2. Link to Club if under Club Admin scope
-      if (scope.isClubAdmin && scope.clubId) {
-        await tx.club_seasons.create({
-          data: {
-            club_id: scope.clubId,
+      // 2. Link to Club(s) via club_seasons so scope filters find it
+      const allClubs = await tx.clubs.findMany({ select: { id: true } });
+      if (allClubs.length > 0) {
+        await tx.club_seasons.createMany({
+          data: allClubs.map((club) => ({
+            club_id: club.id,
             season_id: season.id,
-          },
+          })),
+          skipDuplicates: true,
         });
       }
+
+      // 3. Auto-populate standard 2008-2018 divisions (Male & Female)
+      await ensureStandard2008To2018Divisions(tx, season.id);
 
       return season;
     });
 
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
+    revalidatePath("/admin/seasons");
     revalidatePath("/admin/events");
+    revalidatePath("/admin/players");
     return { success: true, season: newSeason };
   } catch (error: any) {
     console.error("createSeason Error:", error);
@@ -250,6 +287,102 @@ export async function createEvent(input: EventInput) {
   } catch (error: any) {
     console.error("createEvent Error:", error);
     return { success: false, error: error.message || "Failed to create event." };
+  }
+}
+
+/**
+ * Updates an existing Event record.
+ */
+export async function updateEvent(input: EventUpdateInput) {
+  try {
+    const session = await getServerAuthSession();
+    const scope = getScopeFilters(session);
+
+    const existing = await db.events.findFirst({
+      where: {
+        id: input.id,
+        ...scope.filters.event(),
+      },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Access Denied: Event not found or out of scope." };
+    }
+
+    let divisionIds = input.season_age_group_ids;
+
+    if (input.season_team_id) {
+      const seasonTeam = await db.season_teams.findUnique({
+        where: { id: input.season_team_id },
+        select: { season_age_group_id: true },
+      });
+      if (seasonTeam) {
+        divisionIds = [seasonTeam.season_age_group_id];
+      }
+    }
+
+    const updatedEvent = await db.$transaction(async (tx) => {
+      const evt = await tx.events.update({
+        where: { id: input.id },
+        data: {
+          ...(input.name ? { name: input.name } : {}),
+          ...(input.event_type ? { event_type: input.event_type } : {}),
+        },
+      });
+
+      if (divisionIds !== undefined) {
+        await tx.event_divisions.deleteMany({
+          where: { event_id: input.id },
+        });
+
+        if (divisionIds.length > 0) {
+          await tx.event_divisions.createMany({
+            data: divisionIds.map((sagId) => ({
+              event_id: input.id,
+              season_age_group_id: sagId,
+            })),
+            skipDuplicates: true,
+          });
+
+          const playerWhere: any = {
+            season_age_group_id: { in: divisionIds },
+            ...(scope.isClubAdmin ? { club_id: scope.clubId } : {}),
+          };
+
+          if (input.season_team_id) {
+            playerWhere.season_team_id = input.season_team_id;
+          }
+
+          const eligiblePlayers = await tx.season_players.findMany({
+            where: playerWhere,
+            select: { player_id: true },
+          });
+
+          const uniquePlayerIds = [...new Set(eligiblePlayers.map((sp) => sp.player_id))];
+
+          if (uniquePlayerIds.length > 0) {
+            await tx.event_players.createMany({
+              data: uniquePlayerIds.map((pid) => ({
+                event_id: input.id,
+                player_id: pid,
+                availability_status: "unavailable" as const,
+              })),
+              skipDuplicates: true,
+            });
+          }
+        }
+      }
+
+      return evt;
+    });
+
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
+    revalidatePath("/admin/events");
+    return { success: true, event: updatedEvent };
+  } catch (error: any) {
+    console.error("updateEvent Error:", error);
+    return { success: false, error: error.message || "Failed to update event." };
   }
 }
 

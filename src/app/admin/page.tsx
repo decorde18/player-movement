@@ -354,7 +354,7 @@ export default async function AdminDashboardPage() {
               ? [{ label: "Invitations", href: "/admin/invitations", icon: <Star size={16} /> }]
               : []),
             ...(userRole === "system_admin" || userRole === "club_admin"
-              ? [{ label: "Staff Registry", href: "/admin/users", icon: <Building2 size={16} /> }]
+              ? [{ label: "User Management", href: "/admin/users", icon: <Users size={16} /> }]
               : []),
           ].map((link) => (
             <Link

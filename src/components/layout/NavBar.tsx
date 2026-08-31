@@ -136,9 +136,9 @@ function NavBar({
     },
     {
       id: "users",
-      label: "Staff Registry",
+      label: "Users",
       path: "/admin/users",
-      icon: <Shield size={18} />,
+      icon: <Users size={18} />,
       visible: userRole === "system_admin" || userRole === "club_admin",
     },
     {

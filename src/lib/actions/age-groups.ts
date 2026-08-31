@@ -10,7 +10,7 @@ export async function createAgeGroup(data: {
   cutoff_type?: string;
 }) {
   try {
-    await db.age_groups.create({
+    const created = await db.age_groups.create({
       data: {
         name: data.name,
         dob_start: new Date(data.dob_start),
@@ -18,9 +18,13 @@ export async function createAgeGroup(data: {
         cutoff_type: data.cutoff_type || "seasonal",
       },
     });
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
     revalidatePath("/admin/age-groups");
     revalidatePath("/admin/seasons");
-    return { success: true };
+    revalidatePath("/admin/events");
+    revalidatePath("/admin/players");
+    return { success: true, ageGroup: created };
   } catch (error) {
     console.error("Failed to create age group:", error);
     throw error;
@@ -41,8 +45,12 @@ export async function updateAgeGroup(
         cutoff_type: data.cutoff_type,
       },
     });
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
     revalidatePath("/admin/age-groups");
     revalidatePath("/admin/seasons");
+    revalidatePath("/admin/events");
+    revalidatePath("/admin/players");
     return { success: true };
   } catch (error) {
     console.error("Failed to update age group:", error);
@@ -66,8 +74,12 @@ export async function deleteAgeGroup(id: number) {
     await db.age_groups.delete({
       where: { id },
     });
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
     revalidatePath("/admin/age-groups");
     revalidatePath("/admin/seasons");
+    revalidatePath("/admin/events");
+    revalidatePath("/admin/players");
     return { success: true };
   } catch (error) {
     console.error("Failed to delete age group:", error);

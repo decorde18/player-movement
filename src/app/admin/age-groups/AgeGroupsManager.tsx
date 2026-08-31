@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Edit2, Trash2, Calendar } from "lucide-react";
 import {
   createAgeGroup,
@@ -18,6 +19,7 @@ export default function AgeGroupsManager({
 }: {
   initialAgeGroups: any[];
 }) {
+  const router = useRouter();
   const [ageGroups, setAgeGroups] = useState(initialAgeGroups);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAgeGroup, setEditingAgeGroup] = useState<any>(null);
@@ -28,6 +30,10 @@ export default function AgeGroupsManager({
     cutoff_type: "seasonal",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setAgeGroups(initialAgeGroups);
+  }, [initialAgeGroups]);
 
   const handleOpenModal = (ageGroup?: any) => {
     if (ageGroup) {
@@ -55,11 +61,38 @@ export default function AgeGroupsManager({
     try {
       if (editingAgeGroup) {
         await updateAgeGroup(editingAgeGroup.id, formData);
+        setAgeGroups((prev) =>
+          prev.map((ag) =>
+            ag.id === editingAgeGroup.id
+              ? {
+                  ...ag,
+                  name: formData.name,
+                  dob_start: formData.dob_start,
+                  dob_end: formData.dob_end,
+                  cutoff_type: formData.cutoff_type,
+                }
+              : ag
+          )
+        );
       } else {
-        await createAgeGroup(formData);
+        const res = await createAgeGroup(formData);
+        if (res.ageGroup) {
+          const newAg = {
+            id: res.ageGroup.id,
+            name: res.ageGroup.name,
+            dob_start: res.ageGroup.dob_start
+              ? new Date(res.ageGroup.dob_start).toISOString().split("T")[0]
+              : formData.dob_start,
+            dob_end: res.ageGroup.dob_end
+              ? new Date(res.ageGroup.dob_end).toISOString().split("T")[0]
+              : formData.dob_end,
+            cutoff_type: res.ageGroup.cutoff_type || formData.cutoff_type,
+          };
+          setAgeGroups((prev) => [...prev, newAg]);
+        }
       }
       setIsModalOpen(false);
-      window.location.reload();
+      router.refresh();
     } catch (error: any) {
       console.error(error);
       alert(error.message || "An error occurred");
@@ -76,7 +109,8 @@ export default function AgeGroupsManager({
     ) {
       try {
         await deleteAgeGroup(id);
-        window.location.reload();
+        setAgeGroups((prev) => prev.filter((ag) => ag.id !== id));
+        router.refresh();
       } catch (error: any) {
         console.error(error);
         alert(error.message || "Failed to delete age group");
@@ -117,7 +151,7 @@ export default function AgeGroupsManager({
             </tr>
           </thead>
           <tbody className='divide-y divide-[var(--border)]'>
-            {initialAgeGroups.map((ag) => (
+            {ageGroups.map((ag) => (
               <tr
                 key={ag.id}
                 className='hover:bg-[var(--muted)]/30 transition-colors'

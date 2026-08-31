@@ -39,7 +39,7 @@ export async function getUsersDashboardData() {
     userFilter.club_id = activeClubId;
   }
 
-  const [users, clubs, ageGroups, seasonTeams] = await Promise.all([
+  const [users, clubs, ageGroups, seasonTeams, seasons] = await Promise.all([
     db.user.findMany({
       where: userFilter,
       include: {
@@ -101,6 +101,10 @@ export async function getUsersDashboardData() {
         { teams: { name: "asc" } },
       ],
     }),
+    db.seasons.findMany({
+      where: scope.filters.season(),
+      orderBy: { start_date: "desc" },
+    }),
   ]);
 
   return {
@@ -108,6 +112,7 @@ export async function getUsersDashboardData() {
     clubs,
     ageGroups,
     seasonTeams,
+    seasons,
     userScope: {
       role: scope.role,
       clubId: scope.clubId,

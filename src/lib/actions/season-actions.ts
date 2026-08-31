@@ -13,15 +13,34 @@ export async function createSeason(data: Record<string, string>) {
   const parsedData = seasonSchema.parse(data);
 
   try {
-    const newBody = await prisma.seasons.create({
-      data: {
-        name: parsedData.name,
-        start_date: parsedData.start_date ? new Date(parsedData.start_date) : null,
-        end_date: parsedData.end_date ? new Date(parsedData.end_date) : null,
-      },
+    const newBody = await prisma.$transaction(async (tx) => {
+      const season = await tx.seasons.create({
+        data: {
+          name: parsedData.name,
+          start_date: parsedData.start_date ? new Date(parsedData.start_date) : null,
+          end_date: parsedData.end_date ? new Date(parsedData.end_date) : null,
+        },
+      });
+
+      const allClubs = await tx.clubs.findMany({ select: { id: true } });
+      if (allClubs.length > 0) {
+        await tx.club_seasons.createMany({
+          data: allClubs.map((club) => ({
+            club_id: club.id,
+            season_id: season.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return season;
     });
 
-    revalidatePath("/seasons");
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
+    revalidatePath("/admin/seasons");
+    revalidatePath("/admin/events");
+    revalidatePath("/admin/players");
     return newBody; // Return the created object so nested configs get the ID!
   } catch (error) {
     console.error("Error creating season:", error);
@@ -46,7 +65,10 @@ export async function updateSeason(id: unknown, data: Record<string, string>) {
     },
   });
 
-  revalidatePath("/seasons");
+  revalidatePath("/", "layout");
+  revalidatePath("/admin");
+  revalidatePath("/admin/seasons");
+  revalidatePath("/admin/players");
 }
 
 export async function deleteSeason(id: unknown) {
@@ -58,7 +80,10 @@ export async function deleteSeason(id: unknown) {
     where: { id: numId },
   });
 
-  revalidatePath("/seasons");
+  revalidatePath("/", "layout");
+  revalidatePath("/admin");
+  revalidatePath("/admin/seasons");
+  revalidatePath("/admin/players");
 }
 
 export async function getActiveSeasonId() {
