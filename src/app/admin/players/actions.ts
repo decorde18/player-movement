@@ -7,6 +7,7 @@ import { getActiveClubId } from "@/lib/actions/clubs";
 import { getActiveSeasonId } from "@/lib/actions/season-actions";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { isFuzzyNameMatch, normalizeName } from "@/lib/utils/fuzzyMatch";
 
 export interface GuardianInput {
   first_name: string;
@@ -491,8 +492,6 @@ export async function createPlayer(input: PlayerInput) {
   }
 }
 
-import { isFuzzyNameMatch, normalizeName } from "@/lib/utils/fuzzyMatch";
-
 export interface DuplicateCheckResult {
   index: number;
   input: PlayerInput;
@@ -608,16 +607,12 @@ export async function bulkImportPlayers(
       }
     }
 
-    // Fetch all active divisions for the target season to support auto-assigning by DOB
-    let activeDivisions: any[] = [];
-    if (targetSeasonId) {
-      activeDivisions = await db.season_age_groups.findMany({
-        where: { season_id: targetSeasonId },
-        include: {
-          age_groups: true,
-        },
-      });
-    }
+    const activeDivisions = targetSeasonId
+      ? await db.season_age_groups.findMany({
+          where: { season_id: targetSeasonId },
+          include: { age_groups: true },
+        })
+      : [];
 
     // Pre-fetch existing guardians into memory cache for zero-roundtrip lookups during batch import
     const allGuardians = await db.guardians.findMany();
