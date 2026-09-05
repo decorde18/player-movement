@@ -19,6 +19,7 @@ export interface UserInput {
   assigned_team_id?: number | null;
   // Multi-assignment arrays (new)
   age_group_ids?: number[];
+  season_age_group_ids?: number[];
   season_team_ids?: number[];
 }
 
@@ -44,7 +45,16 @@ export async function getUsersDashboardData() {
       where: userFilter,
       include: {
         clubs: true,
-        age_groups: true,
+        age_groups: {
+          include: {
+            season_age_groups: {
+              select: {
+                gender: true,
+                name: true,
+              },
+            },
+          },
+        },
         season_teams: {
           include: {
             teams: true,
@@ -58,7 +68,26 @@ export async function getUsersDashboardData() {
         },
         user_age_groups: {
           include: {
-            age_groups: true,
+            age_groups: {
+              include: {
+                season_age_groups: {
+                  select: {
+                    gender: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        user_season_age_groups: {
+          include: {
+            season_age_groups: {
+              include: {
+                age_groups: true,
+                seasons: true,
+              },
+            },
           },
         },
         user_season_teams: {
@@ -83,6 +112,14 @@ export async function getUsersDashboardData() {
       orderBy: { name: "asc" },
     }),
     db.age_groups.findMany({
+      include: {
+        season_age_groups: {
+          select: {
+            gender: true,
+            name: true,
+          },
+        },
+      },
       orderBy: { name: "asc" },
     }),
     db.season_teams.findMany({
@@ -107,10 +144,30 @@ export async function getUsersDashboardData() {
     }),
   ]);
 
+  // Fetch season_age_groups filtered to calendar year age groups for the active/latest season
+  const activeSeasonId = seasons.length > 0 ? seasons[0].id : undefined;
+  const seasonAgeGroups = await db.season_age_groups.findMany({
+    where: {
+      age_groups: {
+        cutoff_type: "calendar",
+      },
+      ...(activeSeasonId ? { season_id: activeSeasonId } : {}),
+    },
+    include: {
+      age_groups: true,
+      seasons: true,
+    },
+    orderBy: [
+      { age_groups: { name: "asc" } },
+      { gender: "asc" },
+    ],
+  });
+
   return {
     users,
     clubs,
     ageGroups,
+    seasonAgeGroups,
     seasonTeams,
     seasons,
     userScope: {
@@ -163,10 +220,28 @@ export async function createUser(input: UserInput) {
     });
 
     // Write multi-assignment join rows
+    const seasonAgeGroupIds = input.season_age_group_ids || [];
     const ageGroupIds = input.age_group_ids || [];
     const seasonTeamIds = input.season_team_ids || [];
 
-    if (ageGroupIds.length > 0) {
+    if (seasonAgeGroupIds.length > 0) {
+      await db.user_season_age_groups.createMany({
+        data: seasonAgeGroupIds.map((sagId) => ({ user_id: newUser.id, season_age_group_id: sagId })),
+        skipDuplicates: true,
+      });
+
+      const sags = await db.season_age_groups.findMany({
+        where: { id: { in: seasonAgeGroupIds } },
+        select: { age_group_id: true },
+      });
+      const derivedAgIds = Array.from(new Set(sags.map((s) => s.age_group_id)));
+      if (derivedAgIds.length > 0) {
+        await db.user_age_groups.createMany({
+          data: derivedAgIds.map((agId) => ({ user_id: newUser.id, age_group_id: agId })),
+          skipDuplicates: true,
+        });
+      }
+    } else if (ageGroupIds.length > 0) {
       await db.user_age_groups.createMany({
         data: ageGroupIds.map((agId) => ({ user_id: newUser.id, age_group_id: agId })),
         skipDuplicates: true,
@@ -238,20 +313,40 @@ export async function updateUser(id: number, input: UserInput) {
     }
 
     // Update user and replace join table rows atomically
+    const seasonAgeGroupIds = input.season_age_group_ids || [];
     const ageGroupIds = input.age_group_ids || [];
     const seasonTeamIds = input.season_team_ids || [];
+
+    let derivedAgIds: number[] = ageGroupIds;
+    if (seasonAgeGroupIds.length > 0) {
+      const sags = await db.season_age_groups.findMany({
+        where: { id: { in: seasonAgeGroupIds } },
+        select: { age_group_id: true },
+      });
+      derivedAgIds = Array.from(new Set([...ageGroupIds, ...sags.map((s) => s.age_group_id)]));
+    }
 
     await db.$transaction([
       db.user.update({
         where: { id },
         data: dataToUpdate,
       }),
+      // Replace season age group assignments
+      db.user_season_age_groups.deleteMany({ where: { user_id: id } }),
+      ...(seasonAgeGroupIds.length > 0
+        ? [
+            db.user_season_age_groups.createMany({
+              data: seasonAgeGroupIds.map((sagId) => ({ user_id: id, season_age_group_id: sagId })),
+              skipDuplicates: true,
+            }),
+          ]
+        : []),
       // Replace age group assignments
       db.user_age_groups.deleteMany({ where: { user_id: id } }),
-      ...(ageGroupIds.length > 0
+      ...(derivedAgIds.length > 0
         ? [
             db.user_age_groups.createMany({
-              data: ageGroupIds.map((agId) => ({ user_id: id, age_group_id: agId })),
+              data: derivedAgIds.map((agId) => ({ user_id: id, age_group_id: agId })),
               skipDuplicates: true,
             }),
           ]

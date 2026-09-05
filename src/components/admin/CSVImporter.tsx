@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import Button from "../ui/Button";
 import { Upload, HelpCircle, Check, AlertCircle, RefreshCw, HelpCircle as HelpIcon } from "lucide-react";
 import { toast } from "sonner";
-import { bulkImportPlayers } from "@/app/admin/players/actions";
+import { bulkImportPlayers, findPotentialDuplicatePlayers, DuplicateCheckResult, DuplicateResolution } from "@/app/admin/players/actions";
 import Input from "../ui/Input";
 import { POSITION_PRESETS, STANDARD_POSITIONS } from "@/lib/utils/positionPresets";
 
@@ -116,6 +116,10 @@ export default function CSVImporter({
     tryout_number: -1,
     position: -1,
     rating: -1,
+    parent_first_name: -1,
+    parent_last_name: -1,
+    parent_email: -1,
+    parent_phone: -1,
   });
 
   const [autoGuessedFields, setAutoGuessedFields] = useState<Set<string>>(new Set());
@@ -139,6 +143,10 @@ export default function CSVImporter({
   // Completed user mappings
   const [genderMappings, setGenderMappings] = useState<Record<string, "male" | "female">>({});
   const [positionMappings, setPositionMappings] = useState<Record<string, string>>({});
+
+  // Duplicate Check States
+  const [duplicateCheckResults, setDuplicateCheckResults] = useState<DuplicateCheckResult[] | null>(null);
+  const [duplicateResolutions, setDuplicateResolutions] = useState<Record<number, DuplicateResolution>>({});
 
   useEffect(() => {
     if (activeSeasonId) {
@@ -184,16 +192,47 @@ export default function CSVImporter({
         tryout_number: -1,
         position: -1,
         rating: -1,
+        parent_first_name: -1,
+        parent_last_name: -1,
+        parent_email: -1,
+        parent_phone: -1,
       };
 
       const guessed = new Set<string>();
 
       csvHeaders.forEach((header, index) => {
         const h = header.toLowerCase().replace(/[^a-z0-9]/g, "");
-        if (h.includes("first") || h === "fname" || h === "name") {
+
+        // Parent / Guardian specific headers
+        if (h.includes("parentfirst") || h.includes("guardianfirst")) {
+          newMappings.parent_first_name = index;
+          guessed.add("parent_first_name");
+        } else if (h.includes("parentlast") || h.includes("guardianlast")) {
+          newMappings.parent_last_name = index;
+          guessed.add("parent_last_name");
+        } else if (h.includes("parentemail") || h.includes("guardianemail") || h.includes("contactemail")) {
+          newMappings.parent_email = index;
+          guessed.add("parent_email");
+        } else if (h.includes("parentphone") || h.includes("guardianphone") || h.includes("contactphone") || h.includes("mobile") || h.includes("phone")) {
+          newMappings.parent_phone = index;
+          guessed.add("parent_phone");
+        } else if (h.includes("parent") || h.includes("guardian")) {
+          if (h.includes("email")) {
+            newMappings.parent_email = index;
+            guessed.add("parent_email");
+          } else if (h.includes("phone")) {
+            newMappings.parent_phone = index;
+            guessed.add("parent_phone");
+          } else {
+            newMappings.parent_first_name = index;
+            guessed.add("parent_first_name");
+          }
+        }
+        // Player specific headers
+        else if (h.includes("first") || h === "fname" || h === "name" || h === "playerfirst" || h === "playername") {
           newMappings.first_name = index;
           guessed.add("first_name");
-        } else if (h.includes("last") || h === "lname") {
+        } else if (h.includes("last") || h === "lname" || h === "playerlast") {
           newMappings.last_name = index;
           guessed.add("last_name");
         } else if (h.includes("birth") || h.includes("dob") || h === "date") {
@@ -251,7 +290,45 @@ export default function CSVImporter({
     });
   };
 
-  // Inspect unmatched values and trigger Verification Wizard if needed
+  const checkDuplicatesAndProceed = async (
+    gMappings: Record<string, "male" | "female">,
+    pMappings: Record<string, string>
+  ) => {
+    setIsLoading(true);
+    try {
+      const playersList = buildPlayersList(gMappings, pMappings);
+      if (playersList.length === 0) {
+        toast.error("No valid players parsed. Check mapping columns.");
+        setIsLoading(false);
+        return;
+      }
+
+      const dupRes = await findPotentialDuplicatePlayers(playersList);
+      if (dupRes.success && dupRes.results && dupRes.results.some((r) => r.matchType !== "none")) {
+        setDuplicateCheckResults(dupRes.results);
+        const initialResolutions: Record<number, DuplicateResolution> = {};
+        dupRes.results.forEach((r) => {
+          if (r.matchType === "exact" && r.existingPlayer) {
+            initialResolutions[r.index] = { action: "update", targetPlayerId: r.existingPlayer.id };
+          } else if (r.matchType === "fuzzy" && r.existingPlayer) {
+            initialResolutions[r.index] = { action: "create", targetPlayerId: r.existingPlayer.id };
+          } else {
+            initialResolutions[r.index] = { action: "create" };
+          }
+        });
+        setDuplicateResolutions(initialResolutions);
+        toast.info("Duplicate check completed. Review matched players below.");
+      } else {
+        // Direct import if no duplicates found
+        await executeImport(gMappings, pMappings, {});
+      }
+    } catch (e: any) {
+      toast.error("Duplicate check error: " + e.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleImportAttempt = () => {
     if (!selectedSeasonId) {
       toast.error("Please select a target Season for the imported players.");
@@ -318,7 +395,7 @@ export default function CSVImporter({
     setGenderMappings(initialGenderMappings);
     setPositionMappings(initialPositionMappings);
 
-    // If there are unmapped values, present the Wizard Screen
+    // If there are unmapped values, present the Value Wizard Screen
     if (unmappedGendersList.length > 0 || unmappedPositionsList.length > 0) {
       setWizardData({
         rawGenders: unmappedGendersList,
@@ -326,47 +403,44 @@ export default function CSVImporter({
       });
       toast.info("Some values need manual verification mapping before import.");
     } else {
-      // Direct Import (no unmatched fields)
-      executeImport(initialGenderMappings, initialPositionMappings);
+      checkDuplicatesAndProceed(initialGenderMappings, initialPositionMappings);
     }
   };
 
-function normalizePositionValue(val: string): string {
-  if (!val) return "";
-  
-  const clean = val.trim().toLowerCase().replace(/[^a-z0-9\s]/g, "");
-  if (normalizedPresetsCache[clean]) return normalizedPresetsCache[clean];
-  
-  // Extract leading digit fallback, e.g. "#7 Right Winger" -> "7"
-  const match = val.match(/^\s*#?(\d+)/);
-  if (match) return match[1];
+  function normalizePositionValue(val: string): string {
+    if (!val) return "";
+    const clean = val.trim().toLowerCase().replace(/[^a-z0-9\s]/g, "");
+    if (normalizedPresetsCache[clean]) return normalizedPresetsCache[clean];
+    const match = val.match(/^\s*#?(\d+)/);
+    if (match) return match[1];
+    return val.trim();
+  }
 
-  return val.trim();
-}
-
-  const executeImport = async (
+  const buildPlayersList = (
     gMappings: Record<string, "male" | "female">,
     pMappings: Record<string, string>
   ) => {
-    setIsLoading(true);
-    try {
-      const playersList = parsedData.map((row) => {
+    return parsedData
+      .map((row) => {
         const first_name = mappings.first_name !== -1 ? row[mappings.first_name] : "";
         const last_name = mappings.last_name !== -1 ? row[mappings.last_name] : "";
         const rawDob = mappings.date_of_birth !== -1 ? row[mappings.date_of_birth] : "";
-        
-        // Resolve gender mapping
+
         const rawGender = mappings.gender !== -1 ? row[mappings.gender]?.trim() : "";
-        const gender = gMappings[rawGender] || "male"; // default fallback
+        const gender = gMappings[rawGender] || "male";
 
         const tryout_number = mappings.tryout_number !== -1 ? row[mappings.tryout_number] : "";
-        
-        // Resolve position mapping
+
         const rawPos = mappings.position !== -1 ? row[mappings.position]?.trim() : "";
         const mappedPos = pMappings[rawPos] || rawPos || "";
         const position = normalizePositionValue(mappedPos);
 
         const rating = mappings.rating !== -1 ? Number(row[mappings.rating]) || 0 : 0;
+
+        const parent_first_name = mappings.parent_first_name !== -1 ? row[mappings.parent_first_name] : "";
+        const parent_last_name = mappings.parent_last_name !== -1 ? row[mappings.parent_last_name] : "";
+        const parent_email = mappings.parent_email !== -1 ? row[mappings.parent_email] : "";
+        const parent_phone = mappings.parent_phone !== -1 ? row[mappings.parent_phone] : "";
 
         let date_of_birth = "";
         if (rawDob) {
@@ -386,9 +460,23 @@ function normalizePositionValue(val: string): string {
           tryout_number,
           position,
           rating,
+          parent_first_name,
+          parent_last_name,
+          parent_email,
+          parent_phone,
         };
-      }).filter(p => p.first_name && p.last_name);
+      })
+      .filter((p) => p.first_name && p.last_name);
+  };
 
+  const executeImport = async (
+    gMappings: Record<string, "male" | "female">,
+    pMappings: Record<string, string>,
+    resolutions?: Record<number, DuplicateResolution>
+  ) => {
+    setIsLoading(true);
+    try {
+      const playersList = buildPlayersList(gMappings, pMappings);
       if (playersList.length === 0) {
         toast.error("No valid players parsed. Check mapping columns.");
         setIsLoading(false);
@@ -396,14 +484,21 @@ function normalizePositionValue(val: string): string {
       }
 
       const targetEventId = importMode === "event" && selectedEventId ? Number(selectedEventId) : undefined;
-      const res = await bulkImportPlayers(playersList, Number(selectedSeasonId), targetEventId);
+      const res = await bulkImportPlayers(
+        playersList,
+        Number(selectedSeasonId),
+        targetEventId,
+        resolutions || duplicateResolutions
+      );
 
       if (res.success) {
         const modeLabel = importMode === "event" ? "registered for event" : "imported to season";
-        toast.success(`Success! ${res.count} players ${modeLabel}.`);
+        toast.success(`Success! ${res.count} players ${modeLabel}. Event and session rosters synchronized.`);
         setCsvText("");
         setIsParsed(false);
         setWizardData(null);
+        setDuplicateCheckResults(null);
+        setDuplicateResolutions({});
         setParsedData([]);
         onImportSuccess();
       } else {
@@ -546,7 +641,113 @@ function normalizePositionValue(val: string): string {
         </div>
       </div>
 
-      {wizardData ? (
+      {duplicateCheckResults ? (
+        /* DUPLICATE REVIEW STEP */
+        <div className='space-y-6 bg-primary/5 border border-primary/20 p-5 rounded-2xl animate-fadeIn'>
+          <div>
+            <h3 className='text-sm font-bold text-primary flex items-center gap-2'>
+              <AlertCircle size={18} />
+              Review Duplicate & Fuzzy Match Verification
+            </h3>
+            <p className='text-xs text-muted mt-1 leading-relaxed'>
+              We scanned your database for matches against the imported CSV rows. Review exact matches and potential fuzzy matches below to choose whether to update existing records or import as new players.
+            </p>
+          </div>
+
+          <div className='max-h-80 overflow-y-auto border border-border rounded-xl bg-surface divide-y divide-border custom-scrollbar'>
+            {duplicateCheckResults.map((res) => {
+              if (res.matchType === "none") return null;
+              const inputName = `${res.input.first_name} ${res.input.last_name}`;
+              const inputDob = res.input.date_of_birth || "No DOB";
+              const matchedName = res.existingPlayer ? `${res.existingPlayer.first_name} ${res.existingPlayer.last_name}` : "";
+              const matchedDob = res.existingPlayer?.date_of_birth || "No DOB";
+              const currentChoice = duplicateResolutions[res.index]?.action || (res.matchType === "exact" ? "update" : "create");
+
+              return (
+                <div key={res.index} className='p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-background/40 transition-all'>
+                  <div className='flex-1 space-y-1'>
+                    <div className='flex items-center gap-2'>
+                      <span className='font-bold text-xs text-text'>Row {res.index + 1}: {inputName}</span>
+                      <span className='text-[0.65rem] text-muted'>({inputDob})</span>
+                      {res.matchType === "exact" ? (
+                        <span className='px-1.5 py-0.5 text-[0.55rem] font-extrabold rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 uppercase'>
+                          Exact Match
+                        </span>
+                      ) : (
+                        <span className='px-1.5 py-0.5 text-[0.55rem] font-extrabold rounded bg-amber-500/10 text-amber-600 border border-amber-500/30 uppercase'>
+                          Fuzzy Match
+                        </span>
+                      )}
+                    </div>
+                    {res.existingPlayer && (
+                      <div className='text-xs text-muted font-medium flex items-center gap-1.5'>
+                        <span>Matches DB record:</span>
+                        <span className='font-bold text-text-label'>[ID {res.existingPlayer.id}] {matchedName} ({matchedDob})</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className='flex items-center gap-2 self-start md:self-center'>
+                    <button
+                      type='button'
+                      onClick={() =>
+                        setDuplicateResolutions((prev) => ({
+                          ...prev,
+                          [res.index]: { action: "update", targetPlayerId: res.existingPlayer?.id },
+                        }))
+                      }
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                        currentChoice === "update"
+                          ? "bg-primary text-white border-primary shadow-xs"
+                          : "bg-background border-border text-muted hover:text-text"
+                      }`}
+                    >
+                      Update Existing Player
+                    </button>
+                    <button
+                      type='button'
+                      onClick={() =>
+                        setDuplicateResolutions((prev) => ({
+                          ...prev,
+                          [res.index]: { action: "create" },
+                        }))
+                      }
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                        currentChoice === "create"
+                          ? "bg-primary text-white border-primary shadow-xs"
+                          : "bg-background border-border text-muted hover:text-text"
+                      }`}
+                    >
+                      Create New Player
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className='flex justify-between items-center border-t border-border pt-4 mt-4'>
+            <Button variant='outline' onClick={() => setDuplicateCheckResults(null)}>
+              Back to Mappings
+            </Button>
+            <Button
+              variant='success'
+              onClick={() => executeImport(genderMappings, positionMappings, duplicateResolutions)}
+              disabled={isLoading}
+              className='px-6 flex items-center gap-1.5'
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className='animate-spin' size={14} />
+                  <span>Importing & Syncing...</span>
+                </>
+              ) : (
+                <span>Confirm & Complete Import</span>
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : wizardData ? (
         /* WIZARD VALUE VERIFICATION STEP */
         <div className='space-y-6 bg-yellow-500/5 border border-yellow-500/20 p-5 rounded-2xl animate-fadeIn'>
           <div>
@@ -704,6 +905,10 @@ function normalizePositionValue(val: string): string {
                 { key: "tryout_number", label: "Tryout Number", required: false },
                 { key: "position", label: "Position", required: false },
                 { key: "rating", label: "Initial Rating (0-10)", required: false },
+                { key: "parent_first_name", label: "Parent/Guardian First Name", required: false },
+                { key: "parent_last_name", label: "Parent/Guardian Last Name", required: false },
+                { key: "parent_email", label: "Parent Email", required: false },
+                { key: "parent_phone", label: "Parent Phone", required: false },
               ].map((field) => {
                 const isUnmappedRequired = field.required && mappings[field.key] === -1;
                 const isAutoGuessed = autoGuessedFields.has(field.key) && mappings[field.key] !== -1;
@@ -774,7 +979,9 @@ function normalizePositionValue(val: string): string {
                     <th className='p-2.5'>Gender</th>
                     <th className='p-2.5'>Tryout #</th>
                     <th className='p-2.5'>Position</th>
-                    <th className='p-2.5'>Rating</th>
+                    <th className='p-2.5'>Parent Name</th>
+                    <th className='p-2.5'>Parent Email</th>
+                    <th className='p-2.5'>Parent Phone</th>
                   </tr>
                 </thead>
                 <tbody className='divide-y divide-border bg-surface'>
@@ -785,7 +992,11 @@ function normalizePositionValue(val: string): string {
                     const gen = mappings.gender !== -1 ? row[mappings.gender] : "-";
                     const tNum = mappings.tryout_number !== -1 ? row[mappings.tryout_number] : "-";
                     const pos = mappings.position !== -1 ? row[mappings.position] : "-";
-                    const rat = mappings.rating !== -1 ? row[mappings.rating] : "-";
+                    const pFn = mappings.parent_first_name !== -1 ? row[mappings.parent_first_name] : "";
+                    const pLn = mappings.parent_last_name !== -1 ? row[mappings.parent_last_name] : "";
+                    const parentName = `${pFn} ${pLn}`.trim() || "-";
+                    const pEmail = mappings.parent_email !== -1 ? row[mappings.parent_email] : "-";
+                    const pPhone = mappings.parent_phone !== -1 ? row[mappings.parent_phone] : "-";
 
                     return (
                       <tr key={rIdx} className='hover:bg-background/20'>
@@ -795,7 +1006,9 @@ function normalizePositionValue(val: string): string {
                         <td className='p-2.5'>{gen}</td>
                         <td className='p-2.5'>{tNum}</td>
                         <td className='p-2.5'>{pos}</td>
-                        <td className='p-2.5'>{rat}</td>
+                        <td className='p-2.5'>{parentName}</td>
+                        <td className='p-2.5'>{pEmail}</td>
+                        <td className='p-2.5'>{pPhone}</td>
                       </tr>
                     );
                   })}

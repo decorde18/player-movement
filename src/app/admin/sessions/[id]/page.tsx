@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useEffect, useState, use, useTransition } from "react";
-import { getSessionRoster, updateSessionRosterBatch } from "./actions";
-import { Users, AlertCircle, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock, Save, Trash, Star } from "lucide-react";
+import { getSessionRoster, updateSessionRosterBatch, addTrainUpPlayerToSession } from "./actions";
+import { Users, AlertCircle, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock, Save, Trash, Star, Plus, Check } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import FilterBar from "@/components/ui/FilterBar";
 import SortControl from "@/components/ui/SortControl";
 
@@ -21,6 +22,11 @@ export default function SessionRosterPage(props: PageProps) {
   const [loading, setLoading] = useState(true);
   const [showUnavailable, setShowUnavailable] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // Train up modal state
+  const [showAddTrainUpModal, setShowAddTrainUpModal] = useState(false);
+  const [selectedTrainUpPlayerId, setSelectedTrainUpPlayerId] = useState("");
+  const [trainUpSearch, setTrainUpSearch] = useState("");
 
   // Sort / search / filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -94,6 +100,24 @@ export default function SessionRosterPage(props: PageProps) {
   const handleDiscardChanges = () => {
     setPendingChanges({});
     toast.info("Pending changes discarded.");
+  };
+
+  const handleAddTrainUpPlayer = async () => {
+    if (!selectedTrainUpPlayerId) {
+      toast.error("Please select a player to add.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await addTrainUpPlayerToSession(sessionId, Number(selectedTrainUpPlayerId));
+      if (res.success) {
+        toast.success("Train-Up player added to session roster!");
+        setShowAddTrainUpModal(false);
+        setSelectedTrainUpPlayerId("");
+        loadData();
+      } else {
+        toast.error(res.error || "Failed to add train-up player.");
+      }
+    });
   };
 
   const handleSaveChanges = () => {
@@ -278,6 +302,15 @@ export default function SessionRosterPage(props: PageProps) {
           </div>
           
           <div className='flex items-center gap-3 self-center'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => setShowAddTrainUpModal(true)}
+              className='font-bold text-xs flex items-center gap-1.5 h-[38px] border-amber-500/40 text-amber-600 hover:bg-amber-500/10'
+            >
+              <Plus size={14} /> Add Train-Up Player
+            </Button>
+            
             <Link href={`/admin/sessions/${sessionId}/ratings`}>
               <Button variant='primary' size='sm' className='font-bold text-xs bg-accent hover:bg-accent-hover text-white flex items-center gap-1.5 h-[38px]'>
                 <Star size={14} /> Evaluation Ratings
@@ -364,9 +397,16 @@ export default function SessionRosterPage(props: PageProps) {
                               {item.player.first_name[0]}{item.player.last_name[0]}
                             </div>
                             <div>
-                              <Link href={`/admin/players/${item.player.id}`} className='text-text hover:text-primary transition-colors block'>
-                                {item.player.first_name} {item.player.last_name}
-                              </Link>
+                              <div className='flex items-center gap-1.5 flex-wrap'>
+                                <Link href={`/admin/players/${item.player.id}`} className='text-text hover:text-primary transition-colors block font-bold'>
+                                  {item.player.first_name} {item.player.last_name}
+                                </Link>
+                                {item.isTrainUp && (
+                                  <span className='inline-block text-[0.55rem] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 border border-amber-500/30'>
+                                    Train Up
+                                  </span>
+                                )}
+                              </div>
                               <span className='text-[0.65rem] text-muted'>ID: {item.player.id}</span>
                             </div>
                           </div>
@@ -506,6 +546,122 @@ export default function SessionRosterPage(props: PageProps) {
           </div>
         </div>
       )}
+
+      {/* Modal for Adding Individual Train-Up Player */}
+      <Modal
+        isOpen={showAddTrainUpModal}
+        onClose={() => {
+          setShowAddTrainUpModal(false);
+          setSelectedTrainUpPlayerId("");
+          setTrainUpSearch("");
+        }}
+        title='Add Individual Train-Up Player'
+        size='md'
+        footer={
+          <div className='flex justify-end gap-2'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => {
+                setShowAddTrainUpModal(false);
+                setSelectedTrainUpPlayerId("");
+                setTrainUpSearch("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              size='sm'
+              onClick={handleAddTrainUpPlayer}
+              disabled={isPending || !selectedTrainUpPlayerId}
+            >
+              {isPending ? "Adding..." : "Add to Session"}
+            </Button>
+          </div>
+        }
+      >
+        <div className='space-y-4'>
+          <p className='text-xs text-muted font-medium'>
+            Select any player from your club roster to allow them to train up in this evaluation session.
+          </p>
+          <div>
+            <label className='block text-xs font-bold text-text-label mb-1'>Search Player</label>
+            <input
+              type='text'
+              placeholder='Search by name or birth year...'
+              value={trainUpSearch}
+              onChange={(e) => setTrainUpSearch(e.target.value)}
+              className='w-full text-xs p-2 bg-background border border-border rounded-lg text-text focus:outline-none focus:ring-1 focus:ring-primary mb-2'
+            />
+            <div className='border border-border rounded-lg max-h-56 overflow-y-auto bg-surface divide-y divide-border/50'>
+              {((data?.allClubPlayers || []).filter((p: any) => {
+                if (!trainUpSearch.trim()) return true;
+                const q = trainUpSearch.toLowerCase();
+                const name = `${p.first_name} ${p.last_name}`.toLowerCase();
+                const ags = p.season_players
+                  ?.map((sp: any) => sp.season_age_groups?.age_groups?.name || "")
+                  .join(" ")
+                  .toLowerCase();
+                return name.includes(q) || ags.includes(q);
+              })).length === 0 ? (
+                <div className='p-4 text-center text-xs text-muted italic'>
+                  No players found matching your search.
+                </div>
+              ) : (
+                (data?.allClubPlayers || [])
+                  .filter((p: any) => {
+                    if (!trainUpSearch.trim()) return true;
+                    const q = trainUpSearch.toLowerCase();
+                    const name = `${p.first_name} ${p.last_name}`.toLowerCase();
+                    const ags = p.season_players
+                      ?.map((sp: any) => sp.season_age_groups?.age_groups?.name || "")
+                      .join(" ")
+                      .toLowerCase();
+                    return name.includes(q) || ags.includes(q);
+                  })
+                  .map((p: any) => {
+                    const isSelected = selectedTrainUpPlayerId === p.id.toString();
+                    const agNames = p.season_players
+                      ?.map((sp: any) => `${sp.season_age_groups?.age_groups?.name || ""} (${sp.season_age_groups?.gender || ""})`)
+                      .filter(Boolean)
+                      .join(", ");
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedTrainUpPlayerId(p.id.toString())}
+                        className={`flex items-center justify-between p-2.5 text-xs cursor-pointer transition-colors ${
+                          isSelected ? "bg-primary/10 font-bold text-primary" : "hover:bg-background/80 text-text"
+                        }`}
+                      >
+                        <div className='flex items-center gap-2'>
+                          <div
+                            className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                              isSelected ? "border-primary bg-primary text-white" : "border-border"
+                            }`}
+                          >
+                            {isSelected && <Check size={10} />}
+                          </div>
+                          <div>
+                            <div className='font-bold text-text'>
+                              {p.first_name} {p.last_name}
+                            </div>
+                            {agNames && <div className='text-[0.65rem] text-muted'>{agNames}</div>}
+                          </div>
+                        </div>
+                        {p.gender && (
+                          <span className='text-[0.65rem] px-1.5 py-0.5 rounded bg-background border border-border text-muted font-semibold'>
+                            {p.gender}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

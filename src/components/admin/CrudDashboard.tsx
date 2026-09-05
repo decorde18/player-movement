@@ -63,6 +63,7 @@ interface CrudDashboardProps {
     formState: any,
     setFormState: React.Dispatch<React.SetStateAction<any>>
   ) => React.ReactNode;
+  extraHeaderActions?: React.ReactNode;
 }
 
 export default function CrudDashboard({
@@ -77,6 +78,7 @@ export default function CrudDashboard({
   searchPlaceholder = "Search records...",
   csvImportConfig,
   extraAddFields,
+  extraHeaderActions,
 }: CrudDashboardProps) {
   const [activeTab, setActiveTab] = useState<"registry" | "form" | "import">("registry");
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -112,10 +114,39 @@ export default function CrudDashboard({
       // Format date objects or ISO strings for input[type="date"]
       if (c.type === "date" && item[c.key]) {
         state[c.key] = new Date(item[c.key]).toISOString().split("T")[0];
+      } else if (c.type === "select") {
+        const itemVal = item[c.key];
+        const matchedOpt = c.options?.find(
+          (o) => String(o.value).toLowerCase() === String(itemVal).toLowerCase()
+        );
+        state[c.key] = matchedOpt ? matchedOpt.value : (itemVal ?? c.options?.[0]?.value ?? "");
       } else {
         state[c.key] = item[c.key] ?? "";
       }
     });
+
+    // Unpack nested or custom fields (e.g. season_age_group_id, playing_up, tryout_number, position, rating, parent info)
+    if (item.season_players && item.season_players.length > 0) {
+      const sp = item.season_players[0];
+      state.season_age_group_id = sp.season_age_group_id || "";
+      state.playing_up = sp.playing_up ?? false;
+      state.tryout_number = sp.tryout_number || "";
+      state.position = sp.position || "";
+      state.rating = sp.rating ?? 0;
+    }
+    const guardian = item.primaryGuardian || item.player_guardians?.[0]?.guardians;
+    if (guardian) {
+      state.parent_first_name = guardian.first_name || "";
+      state.parent_last_name = guardian.last_name || "";
+      state.parent_email = guardian.email || "";
+      state.parent_phone = guardian.phone || "";
+    } else {
+      state.parent_first_name = item.parent_first_name || "";
+      state.parent_last_name = item.parent_last_name || "";
+      state.parent_email = item.parent_email || "";
+      state.parent_phone = item.parent_phone || "";
+    }
+
     setFormState(state);
     setEditingItem(item);
     setActiveTab("form");
@@ -315,6 +346,7 @@ export default function CrudDashboard({
                 <FileSpreadsheet size={14} /> CSV Import
               </button>
             )}
+            {extraHeaderActions}
           </div>
         </div>
 
@@ -460,7 +492,7 @@ export default function CrudDashboard({
                   })}
 
                   {/* Inject dynamic extra forms if custom hook provided */}
-                  {extraAddFields && !editingItem && extraAddFields(formState, setFormState)}
+                  {extraAddFields && extraAddFields(formState, setFormState)}
 
                   <div className='flex justify-end gap-3 border-t border-border pt-4 mt-6'>
                     <Button

@@ -29,10 +29,21 @@ interface AgeGroup {
   name: string;
 }
 
+interface SeasonAgeGroup {
+  id: number;
+  season_id: number;
+  age_group_id: number;
+  name: string;
+  gender: string;
+  age_groups: { id: number; name: string; cutoff_type: string | null } | null;
+  seasons: { id: number; name: string } | null;
+}
+
 interface SeasonTeam {
   id: number;
   teams: { name: string } | null;
   season_age_groups: {
+    id: number;
     gender: string;
     age_group_id: number;
     age_groups: { name: string } | null;
@@ -50,6 +61,16 @@ interface UserRecord {
   age_groups: { name: string } | null;
   season_teams: any | null;
   user_age_groups: { age_group_id: number; age_groups: { name: string } | null }[];
+  user_season_age_groups: {
+    season_age_group_id: number;
+    season_age_groups: {
+      id: number;
+      name: string;
+      gender: string;
+      age_groups: { name: string } | null;
+      seasons: { name: string } | null;
+    } | null;
+  }[];
   user_season_teams: {
     season_team_id: number;
     season_teams: {
@@ -137,7 +158,7 @@ function MultiSelectList<T extends { id: number; label: string }>({
 function StaffModal({
   user,
   clubs,
-  ageGroups,
+  seasonAgeGroups,
   seasonTeams,
   seasons,
   onClose,
@@ -145,7 +166,7 @@ function StaffModal({
 }: {
   user: UserRecord | null;
   clubs: { id: number; name: string }[];
-  ageGroups: AgeGroup[];
+  seasonAgeGroups: SeasonAgeGroup[];
   seasonTeams: SeasonTeam[];
   seasons: { id: number; name: string }[];
   onClose: () => void;
@@ -158,7 +179,7 @@ function StaffModal({
     password: "",
     role: user?.role || "coach",
     club_id: user?.club_id?.toString() || "",
-    age_group_ids: user?.user_age_groups?.map((r) => r.age_group_id) || [],
+    season_age_group_ids: user?.user_season_age_groups?.map((r) => r.season_age_group_id) || [],
     season_team_ids: user?.user_season_teams?.map((r) => r.season_team_id) || [],
   });
   const [saving, setSaving] = useState(false);
@@ -167,8 +188,8 @@ function StaffModal({
   const filteredTeams: (SeasonTeam & { label: string })[] = seasonTeams
     .filter((st) => {
       const matchesAgeGroup =
-        form.age_group_ids.length === 0 ||
-        (st.season_age_groups && form.age_group_ids.includes(st.season_age_groups.age_group_id));
+        form.season_age_group_ids.length === 0 ||
+        (st.season_age_groups && form.season_age_group_ids.includes(st.season_age_groups.id));
       const matchesSeason =
         selectedSeasonFilter === "all" ||
         st.season_age_groups?.seasons?.name === selectedSeasonFilter ||
@@ -181,15 +202,15 @@ function StaffModal({
       label: `[${st.season_age_groups?.seasons?.name || "Season"}] ${st.teams?.name} (${st.season_age_groups?.gender})`,
     }));
 
-  const handleAgeGroupChange = (ids: number[]) => {
+  const handleSeasonAgeGroupChange = (ids: number[]) => {
     const filteredTeamIds = seasonTeams
       .filter(
-        (st) => ids.length === 0 || (st.season_age_groups && ids.includes(st.season_age_groups.age_group_id))
+        (st) => ids.length === 0 || (st.season_age_groups && ids.includes(st.season_age_groups.id))
       )
       .map((st) => st.id);
     setForm((prev) => ({
       ...prev,
-      age_group_ids: ids,
+      season_age_group_ids: ids,
       season_team_ids: prev.season_team_ids.filter((id) => filteredTeamIds.includes(id)),
     }));
   };
@@ -206,7 +227,13 @@ function StaffModal({
     }
   };
 
-  const ageGroupOptions = ageGroups.map((ag) => ({ ...ag, label: ag.name }));
+  const ageGroupOptions = seasonAgeGroups.map((sag: any) => {
+    const agBaseName = sag.age_groups?.name || sag.name.replace(/\s*(Female|Male)$/i, "");
+    return {
+      id: sag.id,
+      label: `${agBaseName} ${sag.gender}`,
+    };
+  });
 
   return (
     <Modal isOpen onClose={onClose} title={user ? `Edit User: ${user.name}` : "Create New User"} className="max-w-lg">
@@ -285,14 +312,14 @@ function StaffModal({
         <div>
           <label className="block text-xs font-bold text-text-label mb-1">
             Assigned Age Groups
-            {form.age_group_ids.length > 0 && (
-              <span className="ml-2 text-primary font-normal">({form.age_group_ids.length} selected)</span>
+            {form.season_age_group_ids.length > 0 && (
+              <span className="ml-2 text-primary font-normal">({form.season_age_group_ids.length} selected)</span>
             )}
           </label>
           <MultiSelectList
             options={ageGroupOptions}
-            selected={form.age_group_ids}
-            onChange={handleAgeGroupChange}
+            selected={form.season_age_group_ids}
+            onChange={handleSeasonAgeGroupChange}
             placeholder="No age groups available"
           />
         </div>
@@ -414,7 +441,7 @@ export default function UsersAdminPage() {
     );
   }
 
-  const { users, clubs, ageGroups, seasonTeams, seasons } = data;
+  const { users, clubs, ageGroups, seasonAgeGroups, seasonTeams, seasons } = data;
 
   const filteredUsers = users.filter((u: UserRecord) => {
     const matchesSearch =
@@ -443,7 +470,7 @@ export default function UsersAdminPage() {
       password: form.password || undefined,
       role: form.role,
       club_id: form.club_id ? Number(form.club_id) : null,
-      age_group_ids: (form.age_group_ids || []).map(Number),
+      season_age_group_ids: (form.season_age_group_ids || []).map(Number),
       season_team_ids: (form.season_team_ids || []).map(Number),
     };
 
@@ -636,13 +663,30 @@ export default function UsersAdminPage() {
                 </tr>
               ) : (
                 filteredUsers.map((u: UserRecord) => {
+                  const formatAgeGroupLabel = (ag: any) => {
+                    if (!ag) return "";
+                    const genders = ag.season_age_groups?.map((s: any) => s.gender).filter(Boolean) || [];
+                    const uniqueGenders = Array.from(new Set(genders));
+                    const genderStr = uniqueGenders.length > 0 ? ` (${uniqueGenders.join(", ")})` : "";
+                    return `${ag.name}${genderStr}`;
+                  };
+
                   const displayAgeGroups: string[] = [];
-                  if (u.age_groups?.name && u.user_age_groups.length === 0) {
-                    displayAgeGroups.push(u.age_groups.name);
+                  if (u.user_season_age_groups && u.user_season_age_groups.length > 0) {
+                    u.user_season_age_groups.forEach((r: any) => {
+                      if (r.season_age_groups) {
+                        const agBaseName = r.season_age_groups.age_groups?.name || r.season_age_groups.name.replace(/\s*(Female|Male)$/i, "");
+                        displayAgeGroups.push(`${agBaseName} ${r.season_age_groups.gender}`);
+                      }
+                    });
+                  } else {
+                    if (u.age_groups && u.user_age_groups.length === 0) {
+                      displayAgeGroups.push(formatAgeGroupLabel(u.age_groups));
+                    }
+                    u.user_age_groups?.forEach((r: any) => {
+                      if (r.age_groups) displayAgeGroups.push(formatAgeGroupLabel(r.age_groups));
+                    });
                   }
-                  u.user_age_groups.forEach((r) => {
-                    if (r.age_groups?.name) displayAgeGroups.push(r.age_groups.name);
-                  });
 
                   const displayTeams: string[] = [];
                   if (u.season_teams?.teams?.name && u.user_season_teams.length === 0) {
@@ -746,7 +790,7 @@ export default function UsersAdminPage() {
         <StaffModal
           user={modalUser === "new" ? null : modalUser}
           clubs={clubs}
-          ageGroups={ageGroups}
+          seasonAgeGroups={seasonAgeGroups || []}
           seasonTeams={seasonTeams}
           seasons={seasons || []}
           onClose={() => setModalUser(null)}

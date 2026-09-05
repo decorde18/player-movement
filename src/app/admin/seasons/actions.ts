@@ -49,11 +49,16 @@ export async function getSeasonsDashboardData() {
 
   const seasonFilter = scope.filters.season();
 
+  const sagWhereFilter = scope.isAgeGroupAdmin && scope.allowedAgeGroupIds && scope.allowedAgeGroupIds.length > 0
+    ? { age_group_id: { in: scope.allowedAgeGroupIds } }
+    : undefined;
+
   const [seasons, ageGroups] = await Promise.all([
     db.seasons.findMany({
       where: seasonFilter,
       include: {
         season_age_groups: {
+          where: sagWhereFilter,
           include: {
             age_groups: true,
           },
@@ -66,8 +71,26 @@ export async function getSeasonsDashboardData() {
     }),
   ]);
 
+  const cleanedSeasons = seasons.map((season) => {
+    const uniqueSags: any[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const sag of season.season_age_groups) {
+      const key = `${sag.age_group_id}_${sag.gender}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueSags.push(sag);
+      }
+    }
+
+    return {
+      ...season,
+      season_age_groups: uniqueSags,
+    };
+  });
+
   return {
-    seasons,
+    seasons: cleanedSeasons,
     ageGroups,
     userScope: {
       role: scope.role,
@@ -77,36 +100,37 @@ export async function getSeasonsDashboardData() {
   };
 }
 
-export async function ensureStandard2008To2018Divisions(tx: any, seasonId: number) {
+export async function ensureStandard2008To2018Divisions(tx: any, seasonId: number, cutoffType: string = "calendar") {
   const years = [2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018];
   const genders = ["Male", "Female"];
+  const isSeasonal = cutoffType === "seasonal";
 
   for (const year of years) {
+    const dobStart = isSeasonal ? new Date(`${year}-08-01`) : new Date(`${year}-01-01`);
+    const dobEnd = isSeasonal ? new Date(`${year + 1}-07-31`) : new Date(`${year}-12-31`);
+    const agName = isSeasonal ? `${year}/${String(year + 1).slice(-2)}` : `${year}`;
+
     let ageGroup = await tx.age_groups.findFirst({
       where: {
-        cutoff_type: "calendar",
-        dob_start: new Date(`${year}-01-01`),
-        dob_end: new Date(`${year}-12-31`),
+        cutoff_type: isSeasonal ? "seasonal" : "calendar",
+        dob_start: dobStart,
+        dob_end: dobEnd,
       },
     });
 
     if (!ageGroup) {
       ageGroup = await tx.age_groups.create({
         data: {
-          name: `${year}`,
-          dob_start: new Date(`${year}-01-01`),
-          dob_end: new Date(`${year}-12-31`),
-          cutoff_type: "calendar",
+          name: agName,
+          dob_start: dobStart,
+          dob_end: dobEnd,
+          cutoff_type: isSeasonal ? "seasonal" : "calendar",
         },
       });
-    } else if (
-      ageGroup.name.includes(" (1/1 - 12/31)") ||
-      ageGroup.name.includes(" Girls") ||
-      ageGroup.name.includes(" Boys")
-    ) {
+    } else if (ageGroup.name !== agName) {
       await tx.age_groups.update({
         where: { id: ageGroup.id },
-        data: { name: `${year}` },
+        data: { name: agName },
       });
     }
 
@@ -114,8 +138,11 @@ export async function ensureStandard2008To2018Divisions(tx: any, seasonId: numbe
       const existingDiv = await tx.season_age_groups.findFirst({
         where: {
           season_id: seasonId,
-          age_group_id: ageGroup.id,
           gender: gender,
+          age_groups: {
+            dob_start: dobStart,
+            dob_end: dobEnd,
+          },
         },
       });
 
@@ -125,7 +152,7 @@ export async function ensureStandard2008To2018Divisions(tx: any, seasonId: numbe
             season_id: seasonId,
             age_group_id: ageGroup.id,
             gender: gender,
-            name: `${year} ${gender}`,
+            name: `${agName} ${gender}`,
           },
         });
       }
@@ -313,8 +340,8 @@ export async function saveSeason(input: SeasonMutationInput) {
           // Store count for return
           (season as any)._autoRegisteredCount = newSeasonPlayerRows.length;
         } else {
-          // Default: Auto-populate standard 2008-2018 divisions (Male & Female)
-          await ensureStandard2008To2018Divisions(tx, season.id);
+          // Default: Auto-populate standard 2008-2018 divisions (Male & Female) matching season cutoff
+          await ensureStandard2008To2018Divisions(tx, season.id, cutoffType);
         }
 
         return season;

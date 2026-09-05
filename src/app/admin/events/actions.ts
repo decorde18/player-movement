@@ -71,6 +71,10 @@ export async function getEventsDashboardData() {
       }
     : undefined;
 
+  const sagWhereFilter = scope.isAgeGroupAdmin && scope.allowedAgeGroupIds && scope.allowedAgeGroupIds.length > 0
+    ? { age_group_id: { in: scope.allowedAgeGroupIds } }
+    : undefined;
+
   const seasons = await db.seasons.findMany({
     where: seasonFilter,
     include: {
@@ -100,12 +104,32 @@ export async function getEventsDashboardData() {
         orderBy: { created_at: "desc" },
       },
       season_age_groups: {
+        where: sagWhereFilter,
         include: {
           age_groups: true,
         },
       },
     },
     orderBy: [{ created_at: "desc" }, { id: "desc" }],
+  });
+
+  // Deduplicate season_age_groups per season for clean display
+  const cleanedSeasons = seasons.map((season) => {
+    const uniqueSags: any[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const sag of season.season_age_groups) {
+      const key = `${sag.age_group_id}_${sag.gender}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueSags.push(sag);
+      }
+    }
+
+    return {
+      ...season,
+      season_age_groups: uniqueSags,
+    };
   });
 
   const seasonTeams = await db.season_teams.findMany({
@@ -121,7 +145,7 @@ export async function getEventsDashboardData() {
   });
 
   return {
-    seasons,
+    seasons: cleanedSeasons,
     seasonTeams,
     userScope: {
       role: scope.role,
@@ -510,5 +534,67 @@ export async function deleteEvent(eventId: number) {
   } catch (error: any) {
     console.error("deleteEvent Error:", error);
     return { success: false, error: error.message || "Failed to delete event." };
+  }
+}
+
+/**
+ * Adds an individual player to train up for an Event (and automatically rosters them into all sessions for that event).
+ */
+export async function addTrainUpPlayerToEvent(eventId: number, playerId: number) {
+  try {
+    const sessionUser = await getServerAuthSession();
+    const scope = getScopeFilters(sessionUser);
+
+    const event = await db.events.findFirst({
+      where: {
+        id: eventId,
+        ...scope.filters.event(),
+      },
+      include: { sessions: true },
+    });
+
+    if (!event) {
+      return { success: false, error: "Event not found or out of scope." };
+    }
+
+    // 1. Add player to event_players
+    await db.event_players.upsert({
+      where: {
+        event_id_player_id: {
+          event_id: eventId,
+          player_id: playerId,
+        },
+      },
+      update: { availability_status: "available" },
+      create: {
+        event_id: eventId,
+        player_id: playerId,
+        availability_status: "available",
+      },
+    });
+
+    // 2. Automatically propagate into all sessions for this event
+    for (const sess of event.sessions) {
+      await db.session_players.upsert({
+        where: {
+          session_id_player_id: {
+            session_id: sess.id,
+            player_id: playerId,
+          },
+        },
+        update: { attendance_status: "present" },
+        create: {
+          session_id: sess.id,
+          player_id: playerId,
+          attendance_status: "present",
+        },
+      });
+    }
+
+    revalidatePath("/admin/events");
+    return { success: true };
+  } catch (error: any) {
+    console.error("addTrainUpPlayerToEvent Error:", error);
+    return { success: false, error: error.message || "Failed to add player to event." };
   }
 }

@@ -168,7 +168,7 @@ export default function EventsAdminPage() {
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSeasonId) return;
+    if (!selectedSeasonId || !data) return;
     if (!eventName.trim()) {
       toast.error("Event Name is required.");
       return;
@@ -184,30 +184,77 @@ export default function EventsAdminPage() {
       return;
     }
 
+    const inputName = eventName.trim();
+    const inputType = eventType;
+    const inputDivIds = [...selectedDivisionIds];
+    const targetSeasonId = selectedSeasonId;
+    const inputTeamId = selectedTeamIdForEvent;
+    const scopeType = eventScopeType;
+    const previousData = data;
+
+    // Build optimistic event object
+    const activeSeason = data.seasons?.find((s: any) => s.id === targetSeasonId);
+    const tempEventId = -Date.now();
+    const eventDivisions = inputDivIds.map((sagId) => {
+      const sag = activeSeason?.season_age_groups?.find((d: any) => d.id === sagId);
+      return {
+        event_id: tempEventId,
+        season_age_group_id: sagId,
+        season_age_groups: sag || null,
+      };
+    });
+
+    const optimisticEvent = {
+      id: tempEventId,
+      season_id: targetSeasonId,
+      name: inputName,
+      event_type: inputType,
+      created_at: new Date().toISOString(),
+      event_divisions: eventDivisions,
+      sessions: [],
+    };
+
+    // Optimistically update local data state immediately
+    setData((prev: any) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        seasons: prev.seasons.map((s: any) => {
+          if (s.id !== targetSeasonId) return s;
+          return {
+            ...s,
+            events: [optimisticEvent, ...(s.events || [])],
+          };
+        }),
+      };
+    });
+
+    setSelectedEventId(tempEventId);
+    setEventName("");
+    setEventType("tryout");
+    setSelectedDivisionIds([]);
+    setSelectedTeamIdForEvent("");
+    setEventScopeType("division");
+    setShowEventForm(false);
+    toast.success(`Event "${inputName}" created.`);
+
     startTransition(async () => {
       const res = await createEvent({
-        season_id: selectedSeasonId,
-        name: eventName,
-        event_type: eventType,
-        season_age_group_ids: eventScopeType === "division" ? selectedDivisionIds : undefined,
-        season_team_id: eventScopeType === "team" ? Number(selectedTeamIdForEvent) : undefined,
+        season_id: targetSeasonId,
+        name: inputName,
+        event_type: inputType,
+        season_age_group_ids: scopeType === "division" ? inputDivIds : undefined,
+        season_team_id: scopeType === "team" ? Number(inputTeamId) : undefined,
       });
 
       if (res.success) {
-        toast.success(`Event "${eventName}" created successfully.`);
-        setEventName("");
-        setEventType("tryout");
-        setSelectedDivisionIds([]);
-        setSelectedTeamIdForEvent("");
-        setEventScopeType("division");
-        setShowEventForm(false);
-        // Reload and set active
         const reloaded = await getEventsDashboardData();
         setData(reloaded);
         if (res.event) {
           setSelectedEventId(res.event.id);
         }
       } else {
+        setData(previousData);
         toast.error(res.error || "Failed to create event.");
       }
     });
@@ -215,29 +262,90 @@ export default function EventsAdminPage() {
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEventId) return;
+    if (!selectedEventId || !data) return;
     if (!sessionName.trim() || !sessionDate) {
       toast.error("Session Name and Date are required.");
       return;
     }
 
+    const inputName = sessionName.trim();
+    const inputDate = sessionDate;
+    const selectedSagIds = [...selectedSessionDivisionIds];
+    const targetEventId = selectedEventId;
+    const previousData = data;
+
+    // Build optimistic session objects
+    const activeSeason = data.seasons?.find((s: any) => s.id === selectedSeasonId);
+    const optimisticSessions: any[] = [];
+    if (selectedSagIds.length > 0) {
+      for (const sagId of selectedSagIds) {
+        const sag = activeSeason?.season_age_groups?.find((d: any) => d.id === sagId);
+        const sagName = sag?.age_groups?.name || sag?.name || "";
+        const sagGender = sag?.gender || "";
+        const appendedName = `${inputName} - ${sagName} (${sagGender})`;
+        optimisticSessions.push({
+          id: -Date.now() - Math.floor(Math.random() * 10000),
+          event_id: targetEventId,
+          season_age_group_id: sagId,
+          name: appendedName,
+          session_date: new Date(inputDate).toISOString(),
+          season_age_groups: sag || null,
+          created_at: new Date().toISOString(),
+        });
+      }
+    } else {
+      optimisticSessions.push({
+        id: -Date.now(),
+        event_id: targetEventId,
+        season_age_group_id: null,
+        name: inputName,
+        session_date: new Date(inputDate).toISOString(),
+        season_age_groups: null,
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    // Optimistically update UI state immediately
+    setData((prev: any) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        seasons: prev.seasons.map((season: any) => {
+          if (season.id !== selectedSeasonId) return season;
+          return {
+            ...season,
+            events: season.events.map((evt: any) => {
+              if (evt.id !== targetEventId) return evt;
+              return {
+                ...evt,
+                sessions: [...(evt.sessions || []), ...optimisticSessions],
+              };
+            }),
+          };
+        }),
+      };
+    });
+
+    const count = optimisticSessions.length;
+    toast.success(count > 1 ? `Created ${count} division-specific sessions.` : `Session "${inputName}" created.`);
+    setSessionName("");
+    setSessionDate("");
+    setSelectedSessionDivisionIds([]);
+    setShowSessionForm(false);
+
     startTransition(async () => {
       const res = await createSession({
-        event_id: selectedEventId,
-        name: sessionName,
-        session_date: sessionDate,
-        season_age_group_ids: selectedSessionDivisionIds,
+        event_id: targetEventId,
+        name: inputName,
+        session_date: inputDate,
+        season_age_group_ids: selectedSagIds,
       });
 
       if (res.success) {
-        const count = selectedSessionDivisionIds.length;
-        toast.success(count > 0 ? `Created ${count} division-specific sessions.` : `Session "${sessionName}" created.`);
-        setSessionName("");
-        setSessionDate("");
-        setSelectedSessionDivisionIds([]);
-        setShowSessionForm(false);
-        loadData();
+        const reloaded = await getEventsDashboardData();
+        setData(reloaded);
       } else {
+        setData(previousData);
         toast.error(res.error || "Failed to create session.");
       }
     });
@@ -253,30 +361,68 @@ export default function EventsAdminPage() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!activeDeleteTarget) return;
+    if (!activeDeleteTarget || !data) return;
 
     const { type, id, name } = activeDeleteTarget;
-    startTransition(async () => {
-      if (type === "event") {
+    const previousData = data;
+    setActiveDeleteTarget(null);
+
+    if (type === "event") {
+      // Optimistically remove event from local state immediately
+      setData((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          seasons: prev.seasons.map((season: any) => ({
+            ...season,
+            events: season.events.filter((e: any) => e.id !== id),
+          })),
+        };
+      });
+
+      if (selectedEventId === id) {
+        setSelectedEventId(null);
+      }
+      toast.success(`Deleted Event "${name}"`);
+
+      startTransition(async () => {
         const res = await deleteEvent(id);
         if (res.success) {
-          toast.success(`Deleted Event "${name}"`);
-          setSelectedEventId(null);
-          loadData();
+          const reloaded = await getEventsDashboardData();
+          setData(reloaded);
         } else {
+          setData(previousData);
           toast.error(res.error || "Failed to delete event.");
         }
-      } else {
+      });
+    } else {
+      // Optimistically remove session from local state immediately
+      setData((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          seasons: prev.seasons.map((season: any) => ({
+            ...season,
+            events: season.events.map((evt: any) => ({
+              ...evt,
+              sessions: evt.sessions.filter((s: any) => s.id !== id),
+            })),
+          })),
+        };
+      });
+      toast.success(`Deleted Session "${name}"`);
+
+      startTransition(async () => {
         const res = await deleteSession(id);
         if (res.success) {
-          toast.success(`Deleted Session "${name}"`);
-          loadData();
+          const reloaded = await getEventsDashboardData();
+          setData(reloaded);
         } else {
+          setData(previousData);
           toast.error(res.error || "Failed to delete session.");
         }
-      }
-      setActiveDeleteTarget(null);
-    });
+      });
+    }
   };
 
   // Toggle division selection
@@ -599,9 +745,33 @@ export default function EventsAdminPage() {
                         </div>
                       ) : (
                         <div>
-                          <label className='block text-[0.65rem] font-bold text-muted uppercase mb-1'>
-                            Select Age Group Divisions
-                          </label>
+                          <div className='flex items-center justify-between mb-1'>
+                            <label className='block text-[0.65rem] font-bold text-muted uppercase'>
+                              Combine Age Group Divisions ({selectedDivisionIds.length}/{seasonDivisions.length})
+                            </label>
+                            {seasonDivisions.length > 0 && (
+                              <div className='flex items-center gap-1 text-[0.6rem] font-bold'>
+                                <button
+                                  type='button'
+                                  onClick={() => setSelectedDivisionIds(seasonDivisions.map((d: any) => d.id))}
+                                  className='text-primary hover:underline cursor-pointer'
+                                >
+                                  Select All
+                                </button>
+                                <span className='text-muted/40'>|</span>
+                                <button
+                                  type='button'
+                                  onClick={() => setSelectedDivisionIds([])}
+                                  className='text-muted hover:text-text hover:underline cursor-pointer'
+                                >
+                                  Deselect All
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <p className='text-[0.55rem] text-muted mb-2'>
+                            Select multiple age groups to combine them (allowing lower age groups to register and evaluate with older age groups).
+                          </p>
                           {seasonDivisions.length === 0 ? (
                             <p className='text-xs text-muted italic'>No divisions configured for this season.</p>
                           ) : (
@@ -780,10 +950,45 @@ export default function EventsAdminPage() {
                     setShowSessionForm(nextShow);
                     setShowSeasonForm(false);
                     setShowEventForm(false);
-                    if (nextShow && activeEvent?.event_divisions) {
-                      setSelectedSessionDivisionIds(
-                        activeEvent.event_divisions.map((ed: any) => ed.season_age_groups.id)
-                      );
+                    if (nextShow && activeEvent) {
+                      const prevSessions = activeEvent.sessions || [];
+                      let defaultSagIds: number[] = [];
+                      if (prevSessions.length > 0) {
+                        // Find the most recently created session(s) in this event
+                        const sorted = [...prevSessions].sort((a: any, b: any) => {
+                          const idDiff = (b.id || 0) - (a.id || 0);
+                          if (idDiff !== 0) return idDiff;
+                          const timeA = new Date(a.created_at || a.session_date).getTime();
+                          const timeB = new Date(b.created_at || b.session_date).getTime();
+                          return timeB - timeA;
+                        });
+                        const lastSession = sorted[0];
+                        const lastBaseName = lastSession.name?.split(" - ")[0];
+                        const latestBatch = sorted.filter((s: any) =>
+                          lastBaseName
+                            ? s.name?.startsWith(lastBaseName)
+                            : (s.created_at || s.session_date) === (lastSession.created_at || lastSession.session_date)
+                        );
+                        const sagIdsFromBatch = latestBatch
+                          .map((s: any) => s.season_age_group_id)
+                          .filter((id: any): id is number => typeof id === "number");
+
+                        if (sagIdsFromBatch.length > 0) {
+                          defaultSagIds = Array.from(new Set(sagIdsFromBatch));
+                        } else {
+                          const allPrevSagIds = prevSessions
+                            .map((s: any) => s.season_age_group_id)
+                            .filter((id: any): id is number => typeof id === "number");
+                          if (allPrevSagIds.length > 0) {
+                            defaultSagIds = Array.from(new Set(allPrevSagIds));
+                          } else if (activeEvent.event_divisions) {
+                            defaultSagIds = activeEvent.event_divisions.map((ed: any) => Number(ed.season_age_groups.id));
+                          }
+                        }
+                      } else if (activeEvent.event_divisions) {
+                        defaultSagIds = activeEvent.event_divisions.map((ed: any) => Number(ed.season_age_groups.id));
+                      }
+                      setSelectedSessionDivisionIds(defaultSagIds);
                     } else {
                       setSelectedSessionDivisionIds([]);
                     }
@@ -830,9 +1035,32 @@ export default function EventsAdminPage() {
                       {/* Division selection for session */}
                       {activeEvent?.event_divisions && activeEvent.event_divisions.length > 0 && (
                         <div>
-                          <label className='block text-[0.65rem] font-bold text-text-label mb-1.5'>
-                            Target Age Group / Division (Optional)
-                          </label>
+                          <div className='flex items-center justify-between mb-1.5'>
+                            <label className='block text-[0.65rem] font-bold text-text-label'>
+                              Target Age Group / Division ({selectedSessionDivisionIds.length}/{activeEvent.event_divisions.length})
+                            </label>
+                            <div className='flex items-center gap-1 text-[0.6rem] font-bold'>
+                              <button
+                                type='button'
+                                onClick={() =>
+                                  setSelectedSessionDivisionIds(
+                                    activeEvent.event_divisions.map((ed: any) => Number(ed.season_age_groups.id))
+                                  )
+                                }
+                                className='text-primary hover:underline cursor-pointer'
+                              >
+                                Select All
+                              </button>
+                              <span className='text-muted/40'>|</span>
+                              <button
+                                type='button'
+                                onClick={() => setSelectedSessionDivisionIds([])}
+                                className='text-muted hover:text-text hover:underline cursor-pointer'
+                              >
+                                Deselect All
+                              </button>
+                            </div>
+                          </div>
                           <p className='text-[0.55rem] text-muted mb-2'>
                             Select specific divisions to create separate sessions simultaneously, or leave all blank to include all divisions.
                           </p>
@@ -860,7 +1088,7 @@ export default function EventsAdminPage() {
                                   ) : (
                                     <Square size={14} className='text-muted/40 flex-shrink-0' />
                                   )}
-                                  <span>{div.age_groups?.name}</span>
+                                  <span>{div.age_groups?.name || div.name}</span>
                                   <span className='text-[0.55rem] opacity-70'>({div.gender})</span>
                                 </button>
                               );
@@ -916,14 +1144,21 @@ export default function EventsAdminPage() {
                         </div>
 
                         <div className='flex items-center gap-1 opacity-0 group-hover/sess:opacity-100 transition-all'>
-                          <Link
-                            href={`/admin/sessions/${sess.id}`}
-                            className='p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-all cursor-pointer flex items-center gap-1 text-[0.65rem] font-bold'
-                            title='Manage Roster & Attendance'
-                          >
-                            <Users size={14} />
-                            Roster
-                          </Link>
+                          {sess.id < 0 ? (
+                            <span className='px-2 py-1 text-[0.65rem] font-bold text-muted flex items-center gap-1 bg-surface border border-border rounded-lg'>
+                              <Loader2 size={12} className='animate-spin text-primary' />
+                              Saving...
+                            </span>
+                          ) : (
+                            <Link
+                              href={`/admin/sessions/${sess.id}`}
+                              className='p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-all cursor-pointer flex items-center gap-1 text-[0.65rem] font-bold'
+                              title='Manage Roster & Attendance'
+                            >
+                              <Users size={14} />
+                              Roster
+                            </Link>
+                          )}
                           <button
                             onClick={() => handleDeleteSession(sess.id, sess.name)}
                             className='p-1.5 rounded-lg text-muted/40 hover:text-danger hover:bg-danger/10 transition-all cursor-pointer'
