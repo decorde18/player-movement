@@ -24,6 +24,7 @@ export const authOptions: NextAuthOptions = {
             where: { email: credentials.email },
             include: {
               user_age_groups: true,
+              user_season_age_groups: true,
               user_season_teams: true,
             },
           });
@@ -40,6 +41,10 @@ export const authOptions: NextAuthOptions = {
               ...user.user_age_groups.map((r) => r.age_group_id),
             ].filter((v, i, a) => a.indexOf(v) === i);
 
+            const seasonAgeGroupIds = [
+              ...user.user_season_age_groups.map((r) => r.season_age_group_id),
+            ].filter((v, i, a) => a.indexOf(v) === i);
+
             const coachTeamIds = [
               ...(user.assigned_team_id ? [user.assigned_team_id] : []),
               ...user.user_season_teams.map((r) => r.season_team_id),
@@ -51,6 +56,7 @@ export const authOptions: NextAuthOptions = {
               isAgeGroupAdmin,
               isCoach,
               ageGroupIds,
+              seasonAgeGroupIds,
               coachTeamIds,
               clubAdminTeamIds: user.club_id ? [user.club_id] : [],
             };
@@ -154,6 +160,7 @@ export async function getServerAuthSession(): Promise<Session | null> {
           where: { id: impId },
           include: {
             user_age_groups: true,
+            user_season_age_groups: true,
             user_season_teams: true,
           },
         });
@@ -167,6 +174,10 @@ export async function getServerAuthSession(): Promise<Session | null> {
           const ageGroupIds = [
             ...(impUser.assigned_age_group_id ? [impUser.assigned_age_group_id] : []),
             ...impUser.user_age_groups.map((r) => r.age_group_id),
+          ].filter((v, i, a) => a.indexOf(v) === i);
+
+          const seasonAgeGroupIds = [
+            ...impUser.user_season_age_groups.map((r) => r.season_age_group_id),
           ].filter((v, i, a) => a.indexOf(v) === i);
 
           const coachTeamIds = [
@@ -190,6 +201,7 @@ export async function getServerAuthSession(): Promise<Session | null> {
                 isAgeGroupAdmin,
                 isCoach,
                 ageGroupIds,
+                seasonAgeGroupIds,
                 coachTeamIds,
                 clubAdminTeamIds: impUser.club_id ? [impUser.club_id] : [],
               },

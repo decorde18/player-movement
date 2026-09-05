@@ -47,8 +47,10 @@ export const POSITION_PRESETS: Record<string, string> = {
   "4 - Center Back (Defending Midfielder)": "4",
   "4": "4",
   "#4 Right Center Back":"4",
-
+  
   "5 - Center Back": "5",
+  "Left Center Back": "5",
+  "#5 Left Center Back":"4",
   "5": "5",
   cb: "5",
   "center back": "5",

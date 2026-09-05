@@ -38,9 +38,8 @@ export default async function MainAppLayout({ children }: { children: ReactNode 
   const userClubId = (user as any)?.clubId;
   const userRoles = (user as any)?.roles || {};
   // Use the roles object (populated in both JWT and impersonation paths)
-  const assignedAgeGroupId: number | null = userRoles.ageGroupIds?.[0] ?? null;
-  const assignedTeamId: number | null = userRoles.coachTeamIds?.[0] ?? null;
-
+  const allowedAgeGroupIds: number[] = userRoles.ageGroupIds || [];
+  const allowedCoachTeamIds: number[] = userRoles.coachTeamIds || [];
 
   let seasons: any[] = [];
   if (userRole === "system_admin") {
@@ -52,49 +51,54 @@ export default async function MainAppLayout({ children }: { children: ReactNode 
       where: { club_seasons: { some: { club_id: userClubId } } },
       orderBy: { start_date: "desc" },
     });
-  } else if (userRole === "age_group_admin" && assignedAgeGroupId) {
-    // Coordinator sees seasons where their age group is active
+  } else if (userRole === "age_group_admin" && allowedAgeGroupIds.length > 0) {
+    // Coordinator sees seasons where any of their age groups are active
     seasons = await db.seasons.findMany({
       where: {
-        season_age_groups: { some: { age_group_id: assignedAgeGroupId } },
+        season_age_groups: { some: { age_group_id: { in: allowedAgeGroupIds } } },
         ...(userClubId ? { club_seasons: { some: { club_id: userClubId } } } : {}),
       },
       orderBy: { start_date: "desc" },
     });
-  } else if (userRole === "coach" && assignedTeamId) {
-    // Coach sees seasons where their assigned team exists
+  } else if (userRole === "coach" && allowedCoachTeamIds.length > 0) {
+    // Coach sees seasons where any of their assigned teams exist
     seasons = await db.seasons.findMany({
       where: {
         season_age_groups: {
-          some: { season_teams: { some: { id: assignedTeamId } } },
+          some: { season_teams: { some: { id: { in: allowedCoachTeamIds } } } },
         },
+        ...(userClubId ? { club_seasons: { some: { club_id: userClubId } } } : {}),
       },
       orderBy: { start_date: "desc" },
     });
   } else {
-    // Fallback: all seasons (safe default for unscoped roles)
-    seasons = await db.seasons.findMany({ orderBy: { start_date: "desc" } });
+    // Fallback: seasons filtered by clubId if present
+    seasons = await db.seasons.findMany({
+      ...(userClubId ? { where: { club_seasons: { some: { club_id: userClubId } } } } : {}),
+      orderBy: { start_date: "desc" },
+    });
   }
 
   const activeSeasonId = await getActiveSeasonId();
 
   // Scope age groups to what is relevant for this user
   let ageGroupsWhere: any = activeSeasonId ? { season_id: activeSeasonId } : {};
-  if (userRole === "age_group_admin" && assignedAgeGroupId) {
+  if (userRole === "age_group_admin" && allowedAgeGroupIds.length > 0) {
     ageGroupsWhere = {
       ...ageGroupsWhere,
-      age_group_id: assignedAgeGroupId,
+      age_group_id: { in: allowedAgeGroupIds },
     };
-  } else if (userRole === "coach" && assignedTeamId) {
+  } else if (userRole === "coach" && allowedCoachTeamIds.length > 0) {
     // Coach: show only age groups their team belongs to
-    const coachTeam = await db.season_teams.findFirst({
-      where: { id: assignedTeamId },
+    const coachTeams = await db.season_teams.findMany({
+      where: { id: { in: allowedCoachTeamIds } },
       select: { season_age_group_id: true },
     });
-    if (coachTeam?.season_age_group_id) {
+    const sagIds = coachTeams.map((ct) => ct.season_age_group_id);
+    if (sagIds.length > 0) {
       ageGroupsWhere = {
         ...ageGroupsWhere,
-        id: coachTeam.season_age_group_id,
+        id: { in: sagIds },
       };
     }
   }
