@@ -34,7 +34,8 @@ import {
   ArrowRightLeft,
   X,
   Shirt,
-  Shield
+  Shield,
+  GripVertical
 } from "lucide-react";
 import { toast } from "sonner";
 import { smartCompare } from "@/lib/utils/smartSort";
@@ -49,6 +50,9 @@ export default function EventRankingsPage() {
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [saving, setSaving] = useState(false);
+
+  // View Grouping Mode: "tier" (default) or "team" (Final Team Rankings)
+  const [rankingViewGroup, setRankingViewGroup] = useState<"tier" | "team">("tier");
 
   // Active coach rankings being viewed/edited
   const [selectedCoach, setSelectedCoach] = useState<string>("");
@@ -444,8 +448,38 @@ export default function EventRankingsPage() {
     seasonTeams
   } = data;
 
+  const handleMoveRankByStep = (playerId: number, colName: string, step: number) => {
+    if (data?.isFinalized) return;
+    const currentList = getPlayersForColumn(colName);
+    const currentIndex = currentList.findIndex(p => p.playerId === playerId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = currentIndex + step;
+    if (targetIndex < 0 || targetIndex >= currentList.length) return;
+
+    const targetPlayer = currentList[targetIndex];
+    movePlayerToTier(playerId, colName, targetPlayer.playerId);
+  };
+
+  const handleJumpToRank = (playerId: number, colName: string, newRankStr: string) => {
+    if (data?.isFinalized) return;
+    const newRank = parseInt(newRankStr, 10);
+    if (isNaN(newRank) || newRank < 1) return;
+
+    const currentList = getPlayersForColumn(colName);
+    const targetIdx = Math.min(newRank - 1, currentList.length - 1);
+    const targetPlayer = currentList[targetIdx];
+
+    if (targetPlayer && targetPlayer.playerId !== playerId) {
+      movePlayerToTier(playerId, colName, targetPlayer.playerId);
+    }
+  };
+
   const configuredTiers: string[] = eventTiers && eventTiers.length > 0 ? eventTiers : ["Gold", "Competitive", "Development"];
-  const allColumns = ["Unassigned", ...configuredTiers];
+  const teamNames: string[] = Array.from(new Set<string>((seasonTeams || []).map((st: any) => (st.teams?.name || `Team ${st.id}`) as string)));
+  const allColumns: string[] = rankingViewGroup === "team"
+    ? [...teamNames, "Unassigned Team"]
+    : ["Unassigned", ...configuredTiers];
 
   // Predicate filter helper
   const matchesFilter = (p: any) => {
@@ -477,10 +511,18 @@ export default function EventRankingsPage() {
 
   const getPlayersForColumn = (columnName: string) => {
     let list: any[] = [];
-    if (columnName === "Unassigned") {
-      list = rankingsList.filter(p => (!p.tier || p.tier === "Unassigned" || !configuredTiers.includes(p.tier)) && matchesFilter(p));
+    if (rankingViewGroup === "team") {
+      if (columnName === "Unassigned Team") {
+        list = rankingsList.filter(p => (!p.teamName || p.teamName === "Unassigned Team") && matchesFilter(p));
+      } else {
+        list = rankingsList.filter(p => p.teamName === columnName && matchesFilter(p));
+      }
     } else {
-      list = rankingsList.filter(p => p.tier === columnName && matchesFilter(p));
+      if (columnName === "Unassigned") {
+        list = rankingsList.filter(p => (!p.tier || p.tier === "Unassigned" || !configuredTiers.includes(p.tier)) && matchesFilter(p));
+      } else {
+        list = rankingsList.filter(p => p.tier === columnName && matchesFilter(p));
+      }
     }
 
     const sortConfig = columnSorts[columnName] || { key: "rank", direction: "asc" };
@@ -575,6 +617,30 @@ export default function EventRankingsPage() {
           </div>
 
           <div className='flex items-center gap-2.5 flex-wrap'>
+            <div className='flex items-center bg-background border border-border p-1 rounded-xl shadow-xs'>
+              <button
+                type='button'
+                onClick={() => setRankingViewGroup("tier")}
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                  rankingViewGroup === "tier"
+                    ? "bg-primary text-white shadow-xs"
+                    : "text-muted hover:text-text"
+                }`}
+              >
+                Group by Tiers
+              </button>
+              <button
+                type='button'
+                onClick={() => setRankingViewGroup("team")}
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                  rankingViewGroup === "team"
+                    ? "bg-primary text-white shadow-xs"
+                    : "text-muted hover:text-text"
+                }`}
+              >
+                Group by Final Team
+              </button>
+            </div>
             {isCoordinator && (
               <Link href='/admin/teams/placement'>
                 <Button
@@ -795,8 +861,8 @@ export default function EventRankingsPage() {
 
       {/* Main rankings columns grid (Scrolls vertically inside columns, header stays stationary) */}
       <div className='flex gap-6 overflow-x-auto pb-2 custom-scrollbar flex-1 min-h-0 items-stretch w-full'>
-        {allColumns.map((colName, colIdx) => {
-          const isUnassigned = colName === "Unassigned";
+        {allColumns.map((colName: string, colIdx: number) => {
+          const isUnassigned = colName === "Unassigned" || colName === "Unassigned Team";
           const sortedList = getPlayersForColumn(colName);
           const colSort = columnSorts[colName] || { key: "rank", direction: "asc" };
           const allColSelected = sortedList.length > 0 && sortedList.every(p => selectedPlayerIds.has(p.playerId));
@@ -903,7 +969,14 @@ export default function EventRankingsPage() {
                           !isFinalized ? "cursor-grab active:cursor-grabbing" : ""
                         } print:border-gray-300 print:shadow-none`}
                       >
-                        <div className='flex items-center gap-2.5 min-w-0'>
+                        <div className='flex items-center gap-2 min-w-0'>
+                          {/* Drag handle for desktop */}
+                          {!isFinalized && (
+                            <span className='cursor-grab active:cursor-grabbing text-muted hover:text-text p-0.5 print:hidden' title='Drag to reorder'>
+                              <GripVertical size={14} />
+                            </span>
+                          )}
+
                           {/* Checkbox for Bulk Selection */}
                           {!isFinalized && (
                             <button
@@ -918,14 +991,45 @@ export default function EventRankingsPage() {
                             </button>
                           )}
 
-                          {/* Rank Badge */}
-                          <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0 border ${
-                            isUnassigned 
-                              ? "bg-surface text-muted border-border text-[10px]"
-                              : "bg-primary/10 text-primary border-primary/20"
-                          }`}>
-                            {isUnassigned ? "-" : `#${p.rank}`}
-                          </span>
+                          {/* Editable Rank Input + Touch Up/Down Buttons */}
+                          {isUnassigned ? (
+                            <span className='w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 border bg-surface text-muted border-border'>
+                              -
+                            </span>
+                          ) : (
+                            <div className='flex items-center gap-1 shrink-0' onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type='number'
+                                min='1'
+                                max={sortedList.length}
+                                disabled={isFinalized}
+                                value={p.rank || ""}
+                                onChange={(e) => handleJumpToRank(p.playerId, colName, e.target.value)}
+                                className='w-10 px-1 py-0.5 text-center text-xs font-black bg-background border border-primary/30 text-primary rounded-lg focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60'
+                                title='Type rank number to jump position'
+                              />
+                              {!isFinalized && (
+                                <div className='flex flex-col gap-0.5 print:hidden'>
+                                  <button
+                                    type='button'
+                                    onClick={() => handleMoveRankByStep(p.playerId, colName, -1)}
+                                    className='w-4 h-3.5 flex items-center justify-center bg-background hover:bg-surface border border-border rounded text-[9px] font-extrabold text-muted hover:text-primary transition-all'
+                                    title='Move Rank Up'
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    type='button'
+                                    onClick={() => handleMoveRankByStep(p.playerId, colName, 1)}
+                                    className='w-4 h-3.5 flex items-center justify-center bg-background hover:bg-surface border border-border rounded text-[9px] font-extrabold text-muted hover:text-primary transition-all'
+                                    title='Move Rank Down'
+                                  >
+                                    ▼
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           <div className='min-w-0'>
                             <span className='block text-xs font-bold text-text truncate'>

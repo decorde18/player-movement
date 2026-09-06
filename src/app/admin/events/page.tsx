@@ -1134,9 +1134,13 @@ export default function EventsAdminPage() {
                                 <CalendarDays size={12} className='text-muted/60' />
                                 {new Date(sess.session_date).toLocaleDateString()}
                               </span>
-                              {sess.season_age_groups && (
+                              {sess.season_age_groups ? (
                                 <span className='px-1.5 py-0.5 text-[0.55rem] font-bold rounded-full border bg-primary/10 text-primary border-primary/20'>
                                   {sess.season_age_groups.age_groups?.name} ({sess.season_age_groups.gender})
+                                </span>
+                              ) : (
+                                <span className='px-1.5 py-0.5 text-[0.55rem] font-bold rounded-full border bg-amber-500/10 text-amber-600 border-amber-500/20'>
+                                  All Combined Divisions (2016/17s)
                                 </span>
                               )}
                             </div>

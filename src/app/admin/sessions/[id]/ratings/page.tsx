@@ -55,13 +55,27 @@ export default function SessionRatingsPage(props: PageProps) {
   const [sortKey, setSortKey] = useState<string>("tryout");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // Dynamically compute rating range options (must be top-level hook before early return)
+  // Dynamically compute rating range options based on actual values present in this session
   const ratingRangeFilterOptions = React.useMemo(() => {
-    const activeRatingsList = Object.keys(ratingInputs).map(
-      (spId) => parseFloat(ratingInputs[Number(spId)] || "0")
-    );
-    const validRatings = activeRatingsList.filter((r: number) => r > 0);
-    if (validRatings.length === 0) {
+    if (!data?.session?.session_players) {
+      return [
+        { value: "all", label: "All Ratings" },
+        { value: "unrated", label: "Unrated Only" },
+      ];
+    }
+
+    const allRatings: number[] = [];
+    (data.session.session_players || []).forEach((sp: any) => {
+      const inputVal = parseFloat(ratingInputs[sp.id] || "0");
+      const dbRating = sp.rating || 0;
+      const coachRatings = (sp.session_player_ratings || []).map((r: any) => r.rating || 0);
+      const maxRating = Math.max(inputVal, dbRating, ...coachRatings, 0);
+      if (maxRating > 0) {
+        allRatings.push(maxRating);
+      }
+    });
+
+    if (allRatings.length === 0) {
       return [
         { value: "all", label: "All Ratings" },
         { value: "unrated", label: "Unrated Only" },
@@ -69,7 +83,7 @@ export default function SessionRatingsPage(props: PageProps) {
     }
 
     const uniqueScores = Array.from<number>(
-      new Set(validRatings.map((r: number) => Math.floor(r)))
+      new Set(allRatings.map((r: number) => Math.floor(r)))
     ).sort((a: number, b: number) => b - a);
 
     const options = [
@@ -78,7 +92,7 @@ export default function SessionRatingsPage(props: PageProps) {
     ];
 
     uniqueScores.forEach((score: number) => {
-      const count = validRatings.filter((r: number) => Math.floor(r) === score).length;
+      const count = allRatings.filter((r: number) => Math.floor(r) === score).length;
       options.push({
         value: `score_${score}`,
         label: `Score ${score}.0 - ${score}.9 (${count})`,
@@ -86,7 +100,7 @@ export default function SessionRatingsPage(props: PageProps) {
     });
 
     return options;
-  }, [ratingInputs]);
+  }, [data, ratingInputs]);
 
   const loadData = async () => {
     try {
@@ -231,12 +245,15 @@ export default function SessionRatingsPage(props: PageProps) {
     }
 
     // Rating Range filter (dynamically matched to actual session data)
+    const inputVal = parseFloat(ratingInputs[sp.id] || "0");
+    const dbRating = sp.rating || 0;
+    const coachRatings = (sp.session_player_ratings || []).map((r: any) => r.rating || 0);
+    const ratVal = Math.max(inputVal, dbRating, ...coachRatings, 0);
+
     if (ratingRangeFilter === "unrated") {
-      const ratVal = parseFloat(ratingInputs[sp.id] || "0") || sp.rating || 0;
       if (ratVal > 0) return false;
     } else if (ratingRangeFilter.startsWith("score_")) {
       const targetScore = parseInt(ratingRangeFilter.replace("score_", ""), 10);
-      const ratVal = parseFloat(ratingInputs[sp.id] || "0") || sp.rating || 0;
       if (Math.floor(ratVal) !== targetScore) return false;
     }
 

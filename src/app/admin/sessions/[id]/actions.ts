@@ -139,7 +139,7 @@ export async function getSessionRoster(sessionId: number) {
     eventAvailabilityMap.set(ep.player_id, ep.availability_status || "available");
   }
 
-  // 5. Fetch session_players attendance (default to not_checked_in)
+  // 5. Fetch session_players attendance, field, and rank
   const sessionPlayers = await db.session_players.findMany({
     where: {
       session_id: sessionId,
@@ -148,9 +148,20 @@ export async function getSessionRoster(sessionId: number) {
   });
 
   const sessionAttendanceMap = new Map<number, string>();
+  const sessionFieldMap = new Map<number, number | null>();
+  const sessionRankMap = new Map<number, number>();
+
   for (const sp of sessionPlayers) {
     sessionAttendanceMap.set(sp.player_id, sp.attendance_status || "not_checked_in");
+    sessionFieldMap.set(sp.player_id, sp.field_id || null);
+    sessionRankMap.set(sp.player_id, sp.rank || 0);
   }
+
+  // Fetch session fields for field-level grouping & rankings
+  const sessionFields = await db.session_fields.findMany({
+    where: { session_id: sessionId },
+    orderBy: { name: "asc" },
+  });
 
   // Fetch session age group info for train-up detection
   const sessionDivision = session.season_age_group_id
@@ -187,6 +198,8 @@ export async function getSessionRoster(sessionId: number) {
       seasonAssignments: pData.season_players,
       availability_status: eventAvailabilityMap.get(pid) || "available",
       attendance_status: sessionAttendanceMap.get(pid) || "not_checked_in",
+      field_id: sessionFieldMap.get(pid) || null,
+      rank: sessionRankMap.get(pid) || 0,
       isTrainUp: !!isTrainUp,
     };
   });
@@ -225,6 +238,7 @@ export async function getSessionRoster(sessionId: number) {
     roster,
     allClubPlayers,
     sessionDivisions,
+    sessionFields,
     userScope: { role: scope.role, isSystemAdmin: scope.isSystemAdmin },
   };
 }
@@ -238,14 +252,13 @@ export async function addTrainUpPlayerToSession(sessionId: number, playerId: num
 
   const session = await db.sessions.findUnique({
     where: { id: sessionId },
-    include: { events: true },
   });
 
   if (!session) {
-    return { success: false, error: "Session not found." };
+    return { success: false, error: "Session not found" };
   }
 
-  // 1. Add to event_players (available)
+  // 1. Ensure event_players entry exists
   await db.event_players.upsert({
     where: {
       event_id_player_id: {
@@ -261,7 +274,7 @@ export async function addTrainUpPlayerToSession(sessionId: number, playerId: num
     },
   });
 
-  // 2. Add to session_players (present)
+  // 2. Ensure session_players entry exists for this session
   await db.session_players.upsert({
     where: {
       session_id_player_id: {
@@ -389,6 +402,8 @@ export async function updateSessionRosterBatch(
     playerId: number;
     availabilityStatus?: string;
     attendanceStatus?: string;
+    fieldId?: number | null;
+    rank?: number | null;
     tryoutUpdates?: { seasonAgeGroupId: number; clubId: number | null; tryoutNumber: string }[];
   }[]
 ) {
@@ -419,8 +434,8 @@ export async function updateSessionRosterBatch(
         });
       }
 
-      // 2. Update Attendance
-      if (update.attendanceStatus) {
+      // 2. Update Attendance, Field, Rank
+      if (update.attendanceStatus !== undefined || update.fieldId !== undefined || update.rank !== undefined) {
         await tx.session_players.upsert({
           where: {
             session_id_player_id: {
@@ -429,12 +444,16 @@ export async function updateSessionRosterBatch(
             },
           },
           update: {
-            attendance_status: update.attendanceStatus as any,
+            ...(update.attendanceStatus ? { attendance_status: update.attendanceStatus as any } : {}),
+            ...(update.fieldId !== undefined ? { field_id: update.fieldId } : {}),
+            ...(update.rank !== undefined ? { rank: update.rank } : {}),
           },
           create: {
             session_id: sessionId,
             player_id: pid,
-            attendance_status: update.attendanceStatus as any,
+            attendance_status: (update.attendanceStatus as any) || "not_checked_in",
+            field_id: update.fieldId || null,
+            rank: update.rank || 0,
           },
         });
       }

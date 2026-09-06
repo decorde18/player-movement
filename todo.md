@@ -298,3 +298,5 @@ need boys and girls for each
 - [x] **Attendance checkbox UX** — attendance is a checkbox for present/absent with secondary select for excused
 - [x] **Session page search, sort & filter** — admin and coordinator session pages now have full search, sort, and filter parity
 - [x] **Auto-add players from previous season** — players from previous season qualifying by DOB are automatically added when a season is created/cloned
+
+We need a full overhaul.
