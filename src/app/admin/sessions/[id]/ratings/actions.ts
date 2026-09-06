@@ -14,11 +14,15 @@ export async function getRatingsForSession(sessionId: number) {
   const session = await db.sessions.findUnique({
     where: { id: sessionId },
     include: {
-      events: true,
+      events: {
+        include: {
+          event_divisions: true,
+        },
+      },
       session_fields: true,
       session_players: {
         where: {
-          attendance_status: "present",
+          attendance_status: { in: ["present", "not_checked_in"] },
         },
         include: {
           players: {
@@ -44,12 +48,24 @@ export async function getRatingsForSession(sessionId: number) {
     throw new Error("Session not found");
   }
 
+  // Fetch session age groups / divisions for filter tabs
+  const divisionIds = session.season_age_group_id
+    ? [session.season_age_group_id]
+    : (session.events?.event_divisions.map((d) => d.season_age_group_id) || []);
+
+  const sessionDivisions = await db.season_age_groups.findMany({
+    where: { id: { in: divisionIds } },
+    include: { age_groups: true },
+    orderBy: { age_groups: { dob_start: "asc" } },
+  });
+
   // Identify active coach
   const coachEmail = sessionUser?.user?.email || "unknown_coach";
   const coachName = sessionUser?.user?.name || coachEmail;
 
   return {
     session,
+    sessionDivisions,
     coachEmail,
     coachName,
     userScope: {

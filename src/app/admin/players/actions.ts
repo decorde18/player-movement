@@ -466,11 +466,11 @@ export async function createPlayer(input: PlayerInput) {
                         player_id: updatedOrNewPlayer.id,
                       },
                     },
-                    update: { attendance_status: "present" },
+                    update: {},
                     create: {
                       session_id: sess.id,
                       player_id: updatedOrNewPlayer.id,
-                      attendance_status: "present",
+                      attendance_status: "not_checked_in",
                     },
                   });
                 }
@@ -945,7 +945,7 @@ export async function syncSeasonRosters(seasonId?: number) {
               data: sessPlayerIds.map((pid) => ({
                 session_id: sessionItem.id,
                 player_id: pid,
-                attendance_status: "present" as const,
+                attendance_status: "not_checked_in" as const,
               })),
               skipDuplicates: true,
             });

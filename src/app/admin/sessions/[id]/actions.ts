@@ -50,7 +50,7 @@ export async function getSessionRoster(sessionId: number) {
     ? [cookieActiveAgeGroupId]
     : divisionIds;
 
-  // 2. Fetch all season_players in target divisions OR playing up from younger age groups
+  // 2. Fetch all season_players in target divisions OR playing up from adjacent younger age group
   const targetSags = await db.season_age_groups.findMany({
     where: { id: { in: targetDivisionIds } },
     include: { age_groups: true },
@@ -74,10 +74,16 @@ export async function getSessionRoster(sessionId: number) {
 
   const minTargetDobStart = targetDobStarts.length > 0 ? Math.min(...targetDobStarts) : null;
 
+  // Maximum gap of 1.5 years so players playing up only appear in the next 1-year older division (e.g. 2018 -> 2017), not 2-3 years older (e.g. 2018 -> 2015)
+  const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+  const MAX_PLAY_UP_GAP_MS = 1.5 * ONE_YEAR_MS;
+
   const playUpSagIds = candidateSags
     .filter((sag) => {
       if (!minTargetDobStart || !sag.age_groups?.dob_start) return false;
-      return new Date(sag.age_groups.dob_start).getTime() > minTargetDobStart;
+      const sagDobStart = new Date(sag.age_groups.dob_start).getTime();
+      const gap = sagDobStart - minTargetDobStart;
+      return gap > 0 && gap <= MAX_PLAY_UP_GAP_MS;
     })
     .map((sag) => sag.id);
 
@@ -175,7 +181,7 @@ export async function getSessionRoster(sessionId: number) {
     eventAvailabilityMap.set(ep.player_id, ep.availability_status || "available");
   }
 
-  // 5. Fetch session_players attendance
+  // 5. Fetch session_players attendance (default to not_checked_in)
   const sessionPlayers = await db.session_players.findMany({
     where: {
       session_id: sessionId,
@@ -185,7 +191,7 @@ export async function getSessionRoster(sessionId: number) {
 
   const sessionAttendanceMap = new Map<number, string>();
   for (const sp of sessionPlayers) {
-    sessionAttendanceMap.set(sp.player_id, sp.attendance_status || "present");
+    sessionAttendanceMap.set(sp.player_id, sp.attendance_status || "not_checked_in");
   }
 
   // Fetch session age group info for train-up detection
@@ -199,6 +205,13 @@ export async function getSessionRoster(sessionId: number) {
   const targetDobEnd = sessionDivision?.age_groups?.dob_end
     ? new Date(sessionDivision.age_groups.dob_end)
     : null;
+
+  // Fetch all divisions associated with this session/event for UI filter tabs
+  const sessionDivisions = await db.season_age_groups.findMany({
+    where: { id: { in: divisionIds } },
+    include: { age_groups: true },
+    orderBy: { age_groups: { dob_start: "asc" } },
+  });
 
   // Combine data
   const roster = Array.from(uniquePlayersMap.values()).map((pData) => {
@@ -215,7 +228,7 @@ export async function getSessionRoster(sessionId: number) {
       club: pData.club,
       seasonAssignments: pData.season_players,
       availability_status: eventAvailabilityMap.get(pid) || "available",
-      attendance_status: sessionAttendanceMap.get(pid) || "present",
+      attendance_status: sessionAttendanceMap.get(pid) || "not_checked_in",
       isTrainUp: !!isTrainUp,
     };
   });
@@ -253,6 +266,7 @@ export async function getSessionRoster(sessionId: number) {
     event,
     roster,
     allClubPlayers,
+    sessionDivisions,
     userScope: { role: scope.role, isSystemAdmin: scope.isSystemAdmin },
   };
 }

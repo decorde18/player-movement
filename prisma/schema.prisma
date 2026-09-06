@@ -233,7 +233,7 @@ model session_players {
   session_id             Int
   player_id              Int
   season_team_id         Int?
-  attendance_status      session_players_attendance_status? @default(present)
+  attendance_status      session_players_attendance_status? @default(not_checked_in)
   created_at             DateTime?                          @default(now()) @db.Timestamp(0)
   field_id               Int?
   rank                   Int?                               @default(0)
@@ -355,6 +355,7 @@ enum event_players_availability_status {
 }
 
 enum session_players_attendance_status {
+  not_checked_in
   present
   absent
   excused
