@@ -50,46 +50,10 @@ export async function getSessionRoster(sessionId: number) {
     ? [cookieActiveAgeGroupId]
     : divisionIds;
 
-  // 2. Fetch all season_players in target divisions OR playing up from younger age groups
-  const targetSags = await db.season_age_groups.findMany({
-    where: { id: { in: targetDivisionIds } },
-    include: { age_groups: true },
-  });
-
-  const seasonIds = [...new Set(targetSags.map((s) => s.season_id))];
-  const genders = [...new Set(targetSags.map((s) => s.gender))];
-
-  const candidateSags = await db.season_age_groups.findMany({
-    where: {
-      season_id: { in: seasonIds },
-      gender: { in: genders },
-    },
-    include: { age_groups: true },
-  });
-
-  const targetDobStarts = targetSags
-    .map((s) => s.age_groups?.dob_start)
-    .filter(Boolean)
-    .map((d) => new Date(d!).getTime());
-
-  const minTargetDobStart = targetDobStarts.length > 0 ? Math.min(...targetDobStarts) : null;
-
-  const playUpSagIds = candidateSags
-    .filter((sag) => {
-      if (!minTargetDobStart || !sag.age_groups?.dob_start) return false;
-      return new Date(sag.age_groups.dob_start).getTime() > minTargetDobStart;
-    })
-    .map((sag) => sag.id);
-
+  // 2. Fetch all season_players in target divisions
   const seasonPlayers = await db.season_players.findMany({
     where: {
-      OR: [
-        { season_age_group_id: { in: targetDivisionIds } },
-        {
-          season_age_group_id: { in: playUpSagIds },
-          playing_up: true,
-        },
-      ],
+      season_age_group_id: { in: targetDivisionIds },
       ...(scope.isClubAdmin ? { club_id: scope.clubId } : {}),
     },
     include: {
@@ -175,7 +139,7 @@ export async function getSessionRoster(sessionId: number) {
     eventAvailabilityMap.set(ep.player_id, ep.availability_status || "available");
   }
 
-  // 5. Fetch session_players attendance
+  // 5. Fetch session_players attendance (default to not_checked_in)
   const sessionPlayers = await db.session_players.findMany({
     where: {
       session_id: sessionId,
@@ -185,7 +149,7 @@ export async function getSessionRoster(sessionId: number) {
 
   const sessionAttendanceMap = new Map<number, string>();
   for (const sp of sessionPlayers) {
-    sessionAttendanceMap.set(sp.player_id, sp.attendance_status || "present");
+    sessionAttendanceMap.set(sp.player_id, sp.attendance_status || "not_checked_in");
   }
 
   // Fetch session age group info for train-up detection
@@ -199,6 +163,13 @@ export async function getSessionRoster(sessionId: number) {
   const targetDobEnd = sessionDivision?.age_groups?.dob_end
     ? new Date(sessionDivision.age_groups.dob_end)
     : null;
+
+  // Fetch all divisions associated with this session/event for UI filter tabs
+  const sessionDivisions = await db.season_age_groups.findMany({
+    where: { id: { in: divisionIds } },
+    include: { age_groups: true },
+    orderBy: { age_groups: { dob_start: "asc" } },
+  });
 
   // Combine data
   const roster = Array.from(uniquePlayersMap.values()).map((pData) => {
@@ -215,7 +186,7 @@ export async function getSessionRoster(sessionId: number) {
       club: pData.club,
       seasonAssignments: pData.season_players,
       availability_status: eventAvailabilityMap.get(pid) || "available",
-      attendance_status: sessionAttendanceMap.get(pid) || "present",
+      attendance_status: sessionAttendanceMap.get(pid) || "not_checked_in",
       isTrainUp: !!isTrainUp,
     };
   });
@@ -253,6 +224,7 @@ export async function getSessionRoster(sessionId: number) {
     event,
     roster,
     allClubPlayers,
+    sessionDivisions,
     userScope: { role: scope.role, isSystemAdmin: scope.isSystemAdmin },
   };
 }

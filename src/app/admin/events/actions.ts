@@ -582,11 +582,11 @@ export async function addTrainUpPlayerToEvent(eventId: number, playerId: number)
             player_id: playerId,
           },
         },
-        update: { attendance_status: "present" },
+        update: {},
         create: {
           session_id: sess.id,
           player_id: playerId,
-          attendance_status: "present",
+          attendance_status: "not_checked_in",
         },
       });
     }

@@ -432,6 +432,43 @@ export default function SessionRatingsPage(props: PageProps) {
           )}
         </div>
 
+        {/* Age Group Filter Tabs */}
+        {representedAgeGroups && representedAgeGroups.length > 1 && (
+          <div className='flex items-center gap-2 bg-surface/60 border border-border p-2.5 rounded-2xl shadow-sm overflow-x-auto'>
+            <span className='text-xs font-bold text-muted uppercase tracking-wider px-2 shrink-0'>Age Group Filter:</span>
+            <button
+              type='button'
+              onClick={() => setSelectedAgeGroup("all")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                selectedAgeGroup === "all"
+                  ? "bg-primary text-white shadow-sm"
+                  : "bg-background text-muted hover:text-text border border-border"
+              }`}
+            >
+              All Combined ({players.length})
+            </button>
+            {representedAgeGroups.map((sag: any) => {
+              const count = players.filter((sp: any) =>
+                sp.players?.season_players?.some((spRec: any) => spRec.season_age_group_id === sag.id)
+              ).length;
+              return (
+                <button
+                  key={sag.id}
+                  type='button'
+                  onClick={() => setSelectedAgeGroup(sag.id.toString())}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                    selectedAgeGroup === sag.id.toString()
+                      ? "bg-primary text-white shadow-sm"
+                      : "bg-background text-muted hover:text-text border border-border"
+                  }`}
+                >
+                  {sag.age_groups?.name || sag.name} ({sag.gender}) <span className='opacity-70'>({count})</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Reusable Filter & Sort Control Toolbar */}
         <div className='flex flex-wrap items-center justify-between gap-4'>
           <FilterBar

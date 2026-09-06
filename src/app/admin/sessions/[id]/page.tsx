@@ -6,6 +6,7 @@ import { Users, AlertCircle, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock, S
 import { toast } from "sonner";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
+import Checkbox from "@/components/ui/Checkbox";
 import Modal from "@/components/ui/Modal";
 import FilterBar from "@/components/ui/FilterBar";
 import SortControl from "@/components/ui/SortControl";
@@ -29,6 +30,7 @@ export default function SessionRosterPage(props: PageProps) {
   const [trainUpSearch, setTrainUpSearch] = useState("");
 
   // Sort / search / filter
+  const [selectedAgeGroupId, setSelectedAgeGroupId] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -166,7 +168,7 @@ export default function SessionRosterPage(props: PageProps) {
     );
   }
 
-  const { session, event, roster } = data;
+  const { session, event, roster, sessionDivisions = [] } = data;
 
   // Resolve display values considering pendingChanges locally
   const resolvedRoster = roster.map((item: any) => {
@@ -200,10 +202,16 @@ export default function SessionRosterPage(props: PageProps) {
     };
   });
 
-  // Base filter: unavailable toggle
-  const baseRoster = showUnavailable
+  // Base filter: Age Group selection & unavailable toggle
+  const ageGroupFilteredRoster = selectedAgeGroupId === "all"
     ? resolvedRoster
-    : resolvedRoster.filter((r: any) => r.availability_status === "available");
+    : resolvedRoster.filter((r: any) =>
+        r.seasonAssignments?.some((sa: any) => sa.season_age_group_id === Number(selectedAgeGroupId))
+      );
+
+  const baseRoster = showUnavailable
+    ? ageGroupFilteredRoster
+    : ageGroupFilteredRoster.filter((r: any) => r.availability_status === "available");
 
   // Apply search
   const afterSearch = baseRoster.filter((r: any) => {
@@ -256,6 +264,7 @@ export default function SessionRosterPage(props: PageProps) {
       value: attendanceFilter,
       options: [
         { value: "all", label: "All" },
+        { value: "not_checked_in", label: "Not Checked In" },
         { value: "present", label: "Present" },
         { value: "absent", label: "Absent" },
         { value: "excused", label: "Excused" },
@@ -330,6 +339,43 @@ export default function SessionRosterPage(props: PageProps) {
           </div>
         </div>
 
+        {/* Age Group Filter Tabs */}
+        {sessionDivisions && sessionDivisions.length > 1 && (
+          <div className='flex items-center gap-2 bg-surface/60 border border-border p-2.5 rounded-2xl shadow-sm overflow-x-auto'>
+            <span className='text-xs font-bold text-muted uppercase tracking-wider px-2 shrink-0'>Age Group Filter:</span>
+            <button
+              type='button'
+              onClick={() => setSelectedAgeGroupId("all")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                selectedAgeGroupId === "all"
+                  ? "bg-primary text-white shadow-sm"
+                  : "bg-background text-muted hover:text-text border border-border"
+              }`}
+            >
+              All Combined ({resolvedRoster.length})
+            </button>
+            {sessionDivisions.map((sag: any) => {
+              const count = resolvedRoster.filter((r: any) =>
+                r.seasonAssignments?.some((sa: any) => sa.season_age_group_id === sag.id)
+              ).length;
+              return (
+                <button
+                  key={sag.id}
+                  type='button'
+                  onClick={() => setSelectedAgeGroupId(sag.id.toString())}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                    selectedAgeGroupId === sag.id.toString()
+                      ? "bg-primary text-white shadow-sm"
+                      : "bg-background text-muted hover:text-text border border-border"
+                  }`}
+                >
+                  {sag.age_groups?.name || sag.name} ({sag.gender}) <span className='opacity-70'>({count})</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Filters Row */}
         <div className='flex flex-wrap items-center justify-between gap-3 px-2'>
           <div className='flex items-center gap-4'>
@@ -353,7 +399,7 @@ export default function SessionRosterPage(props: PageProps) {
               searchValue={searchQuery}
               onSearchChange={setSearchQuery}
               searchPlaceholder='Search name or tryout #...'
-              onResetFilters={() => { setSearchQuery(""); setAttendanceFilter("all"); }}
+              onResetFilters={() => { setSearchQuery(""); setAttendanceFilter("all"); setSelectedAgeGroupId("all"); }}
               className='min-w-[200px]'
             />
             <SortControl
@@ -457,43 +503,43 @@ export default function SessionRosterPage(props: PageProps) {
                           </button>
                         </td>
 
-                        {/* Session Attendance — Checkbox + conditional Excused select */}
+                        {/* Session Attendance — Checkbox UI component + select dropdown when unchecked */}
                         <td className='p-4 text-center align-middle'>
                           <div className='flex items-center justify-center gap-2'>
-                            {/* Checkbox: checked = present, unchecked = absent/excused */}
-                            <input
-                              type='checkbox'
+                            <Checkbox
                               disabled={!isAvailable}
                               checked={item.attendance_status === "present"}
                               onChange={(e) =>
                                 handleAttendanceChange(
                                   item.player.id,
-                                  e.target.checked ? "present" : "absent"
+                                  e.target.checked ? "present" : "not_checked_in"
                                 )
                               }
-                              className={`w-4 h-4 rounded border cursor-pointer focus:ring-primary ${
-                                !isAvailable
-                                  ? "opacity-40 cursor-not-allowed"
-                                  : item.attendance_status === "present"
-                                  ? "text-green-500 border-green-400 accent-green-500"
-                                  : "text-danger border-danger/50 accent-red-500"
-                              }`}
-                              title={item.attendance_status === "present" ? "Present" : item.attendance_status === "excused" ? "Excused" : "Absent"}
+                              className={
+                                item.attendance_status === "present"
+                                  ? "accent-emerald-600"
+                                  : "accent-red-500"
+                              }
                             />
-                            {/* When not present: show excused dropdown */}
                             {isAvailable && item.attendance_status !== "present" && (
                               <select
                                 value={item.attendance_status}
                                 onChange={(e) => handleAttendanceChange(item.player.id, e.target.value)}
-                                className='text-xs font-bold py-0.5 px-1.5 border rounded bg-orange-500/10 text-orange-600 border-orange-500/20 focus:outline-none cursor-pointer'
+                                className={`text-xs font-bold py-1 px-2 border rounded-lg focus:outline-none cursor-pointer ${
+                                  item.attendance_status === "absent"
+                                    ? "bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400"
+                                    : item.attendance_status === "excused"
+                                    ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400"
+                                    : "bg-slate-500/10 text-slate-600 border-slate-300 dark:border-slate-700 dark:text-slate-400"
+                                }`}
                               >
+                                <option value='not_checked_in'>Not Checked In</option>
                                 <option value='absent'>Absent</option>
                                 <option value='excused'>Excused</option>
                               </select>
                             )}
-                            {/* Status label when present */}
                             {isAvailable && item.attendance_status === "present" && (
-                              <span className='text-[10px] font-bold text-green-600'>Present</span>
+                              <span className='text-xs font-bold text-emerald-600 dark:text-emerald-400'>Present</span>
                             )}
                           </div>
                         </td>
