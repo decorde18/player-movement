@@ -339,6 +339,45 @@ export default function SessionRosterPage(props: PageProps) {
           </div>
         </div>
 
+        {/* Workspace Tabs Sub-Navigation */}
+        <div className='flex items-center gap-2 bg-surface/80 border border-border p-2 rounded-2xl shadow-sm overflow-x-auto shrink-0'>
+          <button
+            type='button'
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-primary text-white shadow-sm flex items-center gap-2 shrink-0 cursor-pointer'
+          >
+            <CheckCircle2 size={14} />
+            Check-in
+          </button>
+          <Link
+            href={`/admin/sessions/${sessionId}/ratings`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Star size={14} className='text-amber-500' />
+            Rating
+          </Link>
+          <Link
+            href={`/player-board`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-primary' />
+            Field Assignment
+          </Link>
+          <Link
+            href={data?.event?.id ? `/admin/events/${data.event.id}/rankings` : '#'}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Star size={14} className='text-purple-500' />
+            Ranking
+          </Link>
+          <Link
+            href={data?.event?.id ? `/admin/events/${data.event.id}/placement` : '#'}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-blue-500' />
+            Final Placement
+          </Link>
+        </div>
+
         {/* Age Group Filter Tabs */}
         {sessionDivisions && sessionDivisions.length > 1 && (
           <div className='flex items-center gap-2 bg-surface/60 border border-border p-2.5 rounded-2xl shadow-sm overflow-x-auto'>
@@ -419,8 +458,8 @@ export default function SessionRosterPage(props: PageProps) {
               <thead className='bg-background text-text-label font-bold border-b border-border text-xs'>
                 <tr>
                   <th className='p-4'>Player Name</th>
-                  <th className='p-4'>Tryout #</th>
-                  <th className='p-4'>Club / Divisions</th>
+                  <th className='p-4 text-center'>Position</th>
+                  <th className='p-4 text-center'>Tryout #</th>
                   <th className='p-4 text-center'>Event Availability</th>
                   <th className='p-4 text-center'>Session Attendance</th>
                 </tr>
@@ -435,57 +474,47 @@ export default function SessionRosterPage(props: PageProps) {
                 ) : (
                   filteredRoster.map((item: any) => {
                     const isAvailable = item.availability_status === "available";
+                    const pos = item.seasonAssignments?.[0]?.position || item.player?.position || "N/A";
                     return (
                       <tr key={item.player.id} className={`hover:bg-background/20 transition-all ${!isAvailable ? "opacity-50 grayscale bg-background/10" : ""}`}>
                         <td className='p-4 font-semibold text-text'>
-                          <div className='flex items-center gap-3'>
-                            <div className='w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase'>
-                              {item.player.first_name[0]}{item.player.last_name[0]}
+                          <div className='flex items-center gap-2'>
+                            <div className='flex items-center gap-1.5 flex-wrap'>
+                              <Link href={`/admin/players/${item.player.id}`} className='text-text hover:text-primary transition-colors block font-extrabold text-base'>
+                                {item.player.first_name} {item.player.last_name}
+                              </Link>
+                              {item.isTrainUp && (
+                                <span className='inline-block text-[0.55rem] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 border border-amber-500/30'>
+                                  Train Up
+                                </span>
+                              )}
                             </div>
-                            <div>
-                              <div className='flex items-center gap-1.5 flex-wrap'>
-                                <Link href={`/admin/players/${item.player.id}`} className='text-text hover:text-primary transition-colors block font-bold'>
-                                  {item.player.first_name} {item.player.last_name}
-                                </Link>
-                                {item.isTrainUp && (
-                                  <span className='inline-block text-[0.55rem] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 border border-amber-500/30'>
-                                    Train Up
-                                  </span>
-                                )}
+                          </div>
+                        </td>
+                        {/* Position Cell */}
+                        <td className='p-4 text-center align-middle font-extrabold text-xs text-text'>
+                          <span className='inline-block px-2 py-0.5 rounded bg-surface border border-border text-muted font-bold'>
+                            {pos}
+                          </span>
+                        </td>
+                        {/* Clean Tryout Number Input */}
+                        <td className='p-4 text-center align-middle'>
+                          {item.seasonAssignments.map((sp: any) => {
+                            // Strip year prefix if tryout_number contains e.g. "2017-42" -> "42"
+                            const cleanNumber = (sp.tryout_number || "").replace(/^\d{4}[-\s]*/, "");
+                            return (
+                              <div key={sp.id} className='inline-flex items-center justify-center gap-1.5 mb-1 last:mb-0'>
+                                <input
+                                  type='text'
+                                  disabled={!isAvailable}
+                                  value={pendingChanges[item.player.id]?.tryoutUpdates?.find((tu: any) => tu.seasonAgeGroupId === sp.season_age_group_id)?.tryoutNumber ?? (cleanNumber || sp.tryout_number || "")}
+                                  placeholder='N/A'
+                                  onChange={(e) => handleTryoutNumberChange(item.player.id, sp.season_age_group_id, sp.club_id, e.target.value)}
+                                  className='w-20 px-2 py-1 text-xs text-center font-bold bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary disabled:opacity-50'
+                                />
                               </div>
-                              <span className='text-[0.65rem] text-muted'>ID: {item.player.id}</span>
-                            </div>
-                          </div>
-                        </td>
-                        {/* Tryout Number Editable Input */}
-                        <td className='p-4 align-middle'>
-                          {item.seasonAssignments.map((sp: any) => (
-                            <div key={sp.id} className='flex items-center gap-1.5 mb-1 last:mb-0'>
-                              <span className='text-[0.6rem] font-bold text-muted w-10 truncate'>
-                                {sp.season_age_groups?.age_groups?.name}:
-                              </span>
-                              <input
-                                type='text'
-                                disabled={!isAvailable}
-                                value={sp.tryout_number || ""}
-                                placeholder='N/A'
-                                onChange={(e) => handleTryoutNumberChange(item.player.id, sp.season_age_group_id, sp.club_id, e.target.value)}
-                                className='w-16 px-1.5 py-0.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary disabled:opacity-50'
-                              />
-                            </div>
-                          ))}
-                        </td>
-                        <td className='p-4'>
-                          <div className='font-bold text-xs text-text mb-1'>
-                            {item.club?.name || "No Club"}
-                          </div>
-                          <div className='flex flex-wrap gap-1'>
-                            {item.seasonAssignments.map((sp: any) => (
-                              <span key={sp.id} className='inline-block px-1.5 py-0.5 bg-background border border-border text-muted font-bold text-[0.65rem] rounded'>
-                                {sp.season_age_groups?.age_groups?.name}
-                              </span>
-                            ))}
-                          </div>
+                            );
+                          })}
                         </td>
                         
                         {/* Event Availability Toggle */}

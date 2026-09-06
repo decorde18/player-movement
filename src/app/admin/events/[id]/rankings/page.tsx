@@ -475,11 +475,23 @@ export default function EventRankingsPage() {
     }
   };
 
-  const configuredTiers: string[] = eventTiers && eventTiers.length > 0 ? eventTiers : ["Gold", "Competitive", "Development"];
+  const activeScoresList = Array.from(
+    new Set<number>(
+      rankingsList
+        .map((p) => p.rating || 0)
+        .filter((r: number) => r > 0)
+    )
+  ).sort((a, b) => b - a);
+
+  const ratingGroupColumns = [
+    "Unassigned",
+    ...activeScoresList.map((sc) => `Rating ${sc.toFixed(1)}`),
+  ];
+
   const teamNames: string[] = Array.from(new Set<string>((seasonTeams || []).map((st: any) => (st.teams?.name || `Team ${st.id}`) as string)));
   const allColumns: string[] = rankingViewGroup === "team"
     ? [...teamNames, "Unassigned Team"]
-    : ["Unassigned", ...configuredTiers];
+    : ratingGroupColumns;
 
   // Predicate filter helper
   const matchesFilter = (p: any) => {
@@ -519,9 +531,9 @@ export default function EventRankingsPage() {
       }
     } else {
       if (columnName === "Unassigned") {
-        list = rankingsList.filter(p => (!p.tier || p.tier === "Unassigned" || !configuredTiers.includes(p.tier)) && matchesFilter(p));
+        list = rankingsList.filter(p => (!p.rating || p.rating === 0) && matchesFilter(p));
       } else {
-        list = rankingsList.filter(p => p.tier === columnName && matchesFilter(p));
+        list = rankingsList.filter(p => p.rating && `Rating ${p.rating.toFixed(1)}` === columnName && matchesFilter(p));
       }
     }
 
@@ -715,6 +727,45 @@ export default function EventRankingsPage() {
               </Button>
             )}
           </div>
+        </div>
+
+        {/* Workspace Tabs Sub-Navigation */}
+        <div className='flex items-center gap-2 bg-surface/80 border border-border p-2 rounded-2xl shadow-sm overflow-x-auto shrink-0 print:hidden'>
+          <Link
+            href={`/player-board`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-emerald-500' />
+            Check-in
+          </Link>
+          <Link
+            href={`/player-board`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-amber-500' />
+            Rating
+          </Link>
+          <Link
+            href={`/player-board`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-primary' />
+            Field Assignment
+          </Link>
+          <button
+            type='button'
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-primary text-white shadow-sm flex items-center gap-2 shrink-0 cursor-pointer'
+          >
+            <ShieldCheck size={14} />
+            Ranking
+          </button>
+          <Link
+            href={`/admin/events/${eventId}/placement`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-blue-500' />
+            Final Placement
+          </Link>
         </div>
 
         {/* Reusable Filter Toolbar */}
@@ -1032,8 +1083,8 @@ export default function EventRankingsPage() {
                           )}
 
                           <div className='min-w-0'>
-                            <span className='block text-xs font-bold text-text truncate'>
-                              {p.lastName}, {p.firstName}
+                            <span className='block text-base font-extrabold text-text truncate'>
+                              {p.firstName} {p.lastName}
                             </span>
                             <span className='block text-[10px] font-bold text-muted mt-0.5 truncate'>
                               Tryout #{p.tryoutNumber || "N/A"} • Pos: {p.position || "N/A"}

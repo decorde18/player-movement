@@ -41,14 +41,19 @@ export async function getSessionRoster(sessionId: number) {
     };
   }
 
-  // 2. Fetch all season_players in target divisions
-  const cookieStore = await cookies();
-  const cookieActiveAgeGroupIdStr = cookieStore.get("activeAgeGroupId")?.value;
-  const cookieActiveAgeGroupId = cookieActiveAgeGroupIdStr ? parseInt(cookieActiveAgeGroupIdStr) : null;
+  let cookieActiveAgeGroupId: number | null = null;
+  try {
+    const cookieStore = await cookies();
+    const cookieActiveAgeGroupIdStr = cookieStore.get("activeAgeGroupId")?.value;
+    if (cookieActiveAgeGroupIdStr) cookieActiveAgeGroupId = parseInt(cookieActiveAgeGroupIdStr, 10);
+  } catch {
+    // Outside request scope fallback
+  }
 
   const targetDivisionIds = cookieActiveAgeGroupId && divisionIds.includes(cookieActiveAgeGroupId)
     ? [cookieActiveAgeGroupId]
     : divisionIds;
+
 
   // 2. Fetch all season_players in target divisions
   const seasonPlayers = await db.season_players.findMany({

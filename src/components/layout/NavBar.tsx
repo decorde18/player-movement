@@ -43,6 +43,14 @@ function NavBar({
   ageGroups = [], 
   activeAgeGroupId 
 }: NavBarProps) {
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsEmbedded(window.self !== window.top || window.location.search.includes("embedded=true"));
+    }
+  }, []);
+
   const pathname = usePathname();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -90,6 +98,11 @@ function NavBar({
     }
   }, [pathname]);
 
+  if (isEmbedded) {
+    return null;
+  }
+
+
   const handleClubChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     startTransition(async () => {
@@ -135,6 +148,41 @@ function NavBar({
       visible: true,
     },
     {
+      id: "player-board",
+      label: "Session Workspace",
+      path: "/player-board",
+      icon: <Kanban size={18} />,
+      visible: true,
+    },
+    {
+      id: "players",
+      label: "Player Management",
+      path: "/admin/players",
+      icon: <Users size={18} />,
+      visible: userRole !== "coach",
+    },
+    {
+      id: "events",
+      label: "Events Management",
+      path: "/admin/events",
+      icon: <Award size={18} />,
+      visible: userRole !== "coach",
+    },
+    {
+      id: "seasons",
+      label: "Season Management",
+      path: "/admin/seasons",
+      icon: <Calendar size={18} />,
+      visible: userRole === "system_admin" || userRole === "club_admin",
+    },
+    {
+      id: "rosters",
+      label: "Rosters",
+      path: "/admin/invitations",
+      icon: <Mail size={18} />,
+      visible: true,
+    },
+    {
       id: "users",
       label: "Users",
       path: "/admin/users",
@@ -149,60 +197,11 @@ function NavBar({
       visible: userRole === "system_admin",
     },
     {
-      id: "seasons",
-      label: "Seasons",
-      path: "/admin/seasons",
-      icon: <Calendar size={18} />,
-      visible: userRole === "system_admin" || userRole === "club_admin",
-    },
-    {
       id: "age-groups",
       label: "Age Groups",
       path: "/admin/age-groups",
       icon: <Layers size={18} />,
       visible: userRole === "system_admin" || userRole === "club_admin",
-    },
-    {
-      id: "players",
-      label: "Player Registry",
-      path: "/admin/players",
-      icon: <Users size={18} />,
-      visible: userRole !== "coach", // visible to system_admin, club_admin, age_group_admin
-    },
-    {
-      id: "events",
-      label: "Events & Sessions",
-      path: "/admin/events",
-      icon: <Award size={18} />,
-      visible: userRole !== "coach", // visible to system_admin, club_admin, age_group_admin
-    },
-    {
-      id: "session-roster",
-      label: "Session Roster",
-      path: sessionRosterHref,
-      icon: <ClipboardCheck size={18} />,
-      visible: true,
-    },
-    {
-      id: "player-board",
-      label: "Player Board",
-      path: "/player-board",
-      icon: <Kanban size={18} />,
-      visible: true,
-    },
-    {
-      id: "invitations",
-      label: "Invitations & Roster",
-      path: "/admin/invitations",
-      icon: <Mail size={18} />,
-      visible: true,
-    },
-    {
-      id: "try",
-      label: "Evaluation App",
-      path: "/admin/try",
-      icon: <ClipboardList size={18} />,
-      visible: true,
     },
   ];
 

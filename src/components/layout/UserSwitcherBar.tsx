@@ -19,8 +19,16 @@ export default function UserSwitcherBar({ currentUser }: UserSwitcherBarProps) {
     process.env.NODE_ENV === "development" ||
     process.env.NEXT_PUBLIC_ENABLE_DEV_USER_SWITCHER === "true";
 
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
   useEffect(() => {
-    if (!showDevSwitcher && !isImpersonating) return;
+    if (typeof window !== "undefined") {
+      setIsEmbedded(window.self !== window.top || window.location.search.includes("embedded=true"));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isEmbedded || (!showDevSwitcher && !isImpersonating)) return;
 
     async function loadUsers() {
       setLoading(true);
@@ -36,11 +44,13 @@ export default function UserSwitcherBar({ currentUser }: UserSwitcherBarProps) {
       }
     }
     loadUsers();
-  }, [showDevSwitcher, isImpersonating]);
+  }, [showDevSwitcher, isImpersonating, isEmbedded]);
 
-  if (!showDevSwitcher && !isImpersonating) {
+  if (isEmbedded || (!showDevSwitcher && !isImpersonating)) {
     return null;
   }
+
+
 
   const handleSelectUser = (userIdStr: string) => {
     const val = userIdStr === "reset" ? null : Number(userIdStr);

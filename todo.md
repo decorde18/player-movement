@@ -299,4 +299,57 @@ need boys and girls for each
 - [x] **Session page search, sort & filter** — admin and coordinator session pages now have full search, sort, and filter parity
 - [x] **Auto-add players from previous season** — players from previous season qualifying by DOB are automatically added when a season is created/cloned
 
-We need a full overhaul.
+---
+
+## 🚀 Session Hub & Tabbed Workspace Overhaul
+
+Focus navigation on the main Session page, using the Player Board header at the top with master filters, and 5 dedicated workspace tabs directly below. Remove superfluous/extra links.
+
+### 📍 Core Layout & Navigation
+- [x] **Player Board Header Integration**: Use the Player Board header (with active division/season/session filters) as the top of the main Session page.
+- [x] **Tab Bar Below Filters**: Add 5 tabs directly below the top filter controls:
+  1. `Check-in`
+  2. `Rating`
+  3. `Field Assignment`
+  4. `Ranking`
+  5. `Final Placement`
+- [x] **Superfluous Links Cleanup**: Remove extra redundant links across navigation to keep focus centered on the tabbed Session workspace.
+
+---
+
+### 🗳️ 1. Check-in Tab (Session Roster)
+- [x] **Refactored Roster Display**:
+  - [x] Remove Club column
+  - [x] Remove Division column
+  - [x] Remove player ID from name display
+  - [x] Remove circle with initials (avatar)
+  - [x] Remove birth year / year suffix from roster/tryout number (display clean tryout number only)
+- [x] **Attendance Controls**: Preserve present/absent checkbox UX with secondary status selection (excused, etc.).
+
+---
+
+### ⭐️ 2. Rating Tab
+- [x] **Unassigned Rating Pool**: Display an "Unassigned Rating" area/section at the start for players without a rating.
+- [x] **Rating Assignment & Section Movement**: Assigning a rating to a player moves them into that rating's section.
+- [x] **Previous Session Carryover**: All players start with their rating from the previous session as their initial rating for the current session.
+- [x] **Optimistic UI Updates**: Instantly move player card/row to their new rating section upon rating change without UI lag or flash.
+
+---
+
+### 🏟️ 3. Field Assignment Tab (Optional)
+- [x] **Optional Tab Enablement**: Allow splitting large player groups across fields (`session_fields`).
+- [x] **Cross-Field Drag-and-Drop**: Drag players between fields (Field 1, Field 2, etc.).
+- [x] **Intra-Field Drag-and-Drop Ranking**: Drag players up and down within a field column to re-order/rank them on that field.
+- [x] **Field Shift Default Position**: When a player is moved to a new field, automatically place them at the very bottom of the new field's ranking list.
+
+---
+
+### 🏆 4. Ranking Tab
+- [x] **Tier/Rating Group Manual Ranking**: Group players by their rating group and rank manually within each rating group.
+- [x] **Up/Down Reordering**: Move players up or down within their rating group.
+- [x] **Automatic Saving**: Instantly and automatically persist ranking order changes to database upon reordering.
+
+---
+
+### 🎯 5. Final Placement Tab
+- [x] **Team Placement Workspace**: Assign finalized/ranked players to permanent teams (`season_teams`).

@@ -226,3 +226,25 @@
     color: var(--color-primary);
   }
 }
+
+/* Embedded iframe mode overrides (Instant CSS Hiding) */
+html.is-embedded nav,
+html.is-embedded header,
+html.is-embedded .user-switcher-bar,
+html.is-embedded .layout > .main-body > nav,
+html.is-embedded .layout > .main-body > div > header {
+  display: none !important;
+}
+
+html.is-embedded .main-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+html.is-embedded .layout {
+  height: 100% !important;
+  background: transparent !important;
+}
+

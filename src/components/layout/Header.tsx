@@ -56,6 +56,18 @@ interface HeaderUser {
 }
 
 function Header({ user }: { user?: HeaderUser }) {
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsEmbedded(window.self !== window.top || window.location.search.includes("embedded=true"));
+    }
+  }, []);
+
+  if (isEmbedded) {
+    return null;
+  }
+
   // const router = useRouter();
   // const { data: session } = useSession();
   // const [isDropdownOpen, setIsDropdownOpen] = useState(false);

@@ -456,6 +456,45 @@ export default function StandaloneTeamPlacementPage() {
           </div>
         </div>
 
+        {/* Workspace Tabs Sub-Navigation */}
+        <div className='flex items-center gap-2 bg-surface/80 border border-border p-2 rounded-2xl shadow-sm overflow-x-auto shrink-0 print:hidden'>
+          <Link
+            href={`/player-board`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-emerald-500' />
+            Check-in
+          </Link>
+          <Link
+            href={`/player-board`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-amber-500' />
+            Rating
+          </Link>
+          <Link
+            href={`/player-board`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-primary' />
+            Field Assignment
+          </Link>
+          <Link
+            href={`/player-board`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Star size={14} className='text-purple-500' />
+            Ranking
+          </Link>
+          <button
+            type='button'
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-primary text-white shadow-sm flex items-center gap-2 shrink-0 cursor-pointer'
+          >
+            <Shirt size={14} />
+            Final Placement
+          </button>
+        </div>
+
         {/* Reusable Filter Toolbar */}
         <FilterBar
           filters={filterGroups}

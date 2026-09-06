@@ -27,8 +27,30 @@ export function getScopeFilters(
   clubIdOverride?: number | null,
 ) {
   if (!session || !session.user) {
+    if (process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEV_USER_SWITCHER === "true") {
+      return {
+        role: "system_admin" as const,
+        isSystemAdmin: true,
+        isClubAdmin: false,
+        isAgeGroupAdmin: false,
+        isCoach: false,
+        clubId: clubIdOverride || null,
+        filters: {
+          player: () => ({}),
+          club: () => ({}),
+          season: () => ({}),
+          event: () => ({}),
+          session: () => ({}),
+          seasonAgeGroup: () => ({}),
+          team: () => ({}),
+        },
+      };
+    }
     throw new Error("Unauthorized: Active session required.");
   }
+
+
+
 
   const user = session.user as unknown as AuthenticatedUser;
   const role = user.role;

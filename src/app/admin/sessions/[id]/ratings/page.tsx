@@ -107,13 +107,21 @@ export default function SessionRatingsPage(props: PageProps) {
       const res = await getRatingsForSession(sessionId);
       setData(res);
 
-      // Pre-fill local rating input state with active coach's existing ratings
+      // Pre-fill local rating input state with active coach's existing ratings or previous session carryover
       const inputs: Record<number, string> = {};
       (res.session?.session_players || []).forEach((sp: any) => {
         const coachRating = sp.session_player_ratings?.find(
           (r: any) => r.coach_id === res.coachEmail
         );
-        inputs[sp.id] = coachRating ? coachRating.rating.toString() : "";
+        if (coachRating && coachRating.rating > 0) {
+          inputs[sp.id] = coachRating.rating.toString();
+        } else if (sp.rating && sp.rating > 0) {
+          inputs[sp.id] = sp.rating.toString();
+        } else if (res.previousRatings?.[sp.player_id]) {
+          inputs[sp.id] = res.previousRatings[sp.player_id].toString();
+        } else {
+          inputs[sp.id] = "";
+        }
       });
       setRatingInputs(inputs);
     } catch (e: any) {
@@ -403,6 +411,45 @@ export default function SessionRatingsPage(props: PageProps) {
           </div>
         </div>
 
+        {/* Workspace Tabs Sub-Navigation */}
+        <div className='flex items-center gap-2 bg-surface/80 border border-border p-2 rounded-2xl shadow-sm overflow-x-auto shrink-0'>
+          <Link
+            href={`/admin/sessions/${sessionId}`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <UserCheck size={14} className='text-emerald-500' />
+            Check-in
+          </Link>
+          <button
+            type='button'
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-primary text-white shadow-sm flex items-center gap-2 shrink-0 cursor-pointer'
+          >
+            <Star size={14} />
+            Rating
+          </button>
+          <Link
+            href={`/player-board`}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-primary' />
+            Field Assignment
+          </Link>
+          <Link
+            href={session?.events?.id ? `/admin/events/${session.events.id}/rankings` : '#'}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Award size={14} className='text-purple-500' />
+            Ranking
+          </Link>
+          <Link
+            href={session?.events?.id ? `/admin/events/${session.events.id}/placement` : '#'}
+            className='px-4 py-2 text-xs font-bold rounded-xl transition-all bg-background text-muted hover:text-text border border-border flex items-center gap-2 shrink-0'
+          >
+            <Users size={14} className='text-blue-500' />
+            Final Placement
+          </Link>
+        </div>
+
         {/* Info Stats Ribbon */}
         <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
           <Card className='p-3 flex items-center gap-3 bg-surface/50 border-border'>
@@ -511,109 +558,104 @@ export default function SessionRatingsPage(props: PageProps) {
         </div>
       </div>
 
-      {/* Scrollable Fields & Roster Ratings Area */}
+      {/* Dynamic Rating Sections Area */}
       <div className='flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-6 pr-1'>
-        {[...fields, { id: null, name: "Unassigned" }].map((field: any) => {
-          const rawFieldPlayers = players.filter((p: any) => p.field_id === field.id && matchesFilters(p));
-          if (rawFieldPlayers.length === 0 && field.id === null) return null; // Hide empty unassigned column
+        {(() => {
+          // Calculate distinct rating scores currently active
+          const activeScores = Array.from(
+            new Set<number>(
+              players
+                .map((p: any) => {
+                  const inputValStr = ratingInputs[p.id];
+                  const score = inputValStr !== undefined && inputValStr !== ""
+                    ? parseFloat(inputValStr)
+                    : (p.rating || 0);
+                  return !isNaN(score) && score > 0 ? score : 0;
+                })
+                .filter((s: number) => s > 0)
+            )
+          ).sort((a, b) => b - a);
 
-          const fieldPlayers = sortPlayersList(rawFieldPlayers);
+          const dynamicSections = [
+            { id: "unassigned", title: "Unassigned Rating", score: null },
+            ...activeScores.map((sc) => ({
+              id: `score_${sc}`,
+              title: `Rating ${sc.toFixed(1)}`,
+              score: sc,
+            })),
+          ];
 
-          return (
-            <Card key={field.id ?? "unassigned"} className='p-5 bg-surface/80 border-border shadow-sm flex flex-col space-y-4'>
-              <div className='flex items-center justify-between border-b border-border pb-3'>
-                <h3 className='font-extrabold text-sm text-text flex items-center gap-2'>
-                  <span className='w-2.5 h-2.5 rounded-full bg-primary' />
-                  {field.name}
-                </h3>
-                <span className='text-xs font-bold px-2 py-0.5 rounded-full bg-muted/20 text-muted'>
-                  {fieldPlayers.length} {fieldPlayers.length === 1 ? "Player" : "Players"} Present
-                </span>
-              </div>
+          return dynamicSections.map((sec: any) => {
+            const sectionPlayers = players.filter((p: any) => {
+              if (!matchesFilters(p)) return false;
+              const inputValStr = ratingInputs[p.id];
+              const currentRating = inputValStr !== undefined && inputValStr !== ""
+                ? parseFloat(inputValStr)
+                : (p.rating || 0);
 
-              {fieldPlayers.length > 0 && (
-                <div className='flex items-center gap-3 bg-primary/5 border border-primary/10 p-3 rounded-xl max-w-md'>
-                  <span className='text-xs font-bold text-primary shrink-0'>Bulk Assign Ratings:</span>
-                  <input
-                    type='text'
-                    placeholder='Enter rating (0-10)...'
-                    id={`bulk-rating-input-${field.id ?? "unassigned"}`}
-                    className='w-32 py-1 px-2 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary'
-                  />
-                  <Button
-                    variant='primary'
-                    size='xs'
-                    onClick={async () => {
-                      const inputEl = document.getElementById(`bulk-rating-input-${field.id ?? "unassigned"}`) as HTMLInputElement | null;
-                      const valStr = inputEl?.value || "";
-                      const val = parseFloat(valStr);
-                      if (isNaN(val) || val < 0 || val > 10) {
-                        toast.error("Please enter a valid rating between 0 and 10.");
-                        return;
-                      }
-                      setIsBulkSaving(true);
-                      try {
-                        for (const sp of fieldPlayers) {
-                          await submitPlayerRating(sessionId, sp.id, val);
-                        }
-                        toast.success(`Successfully assigned rating of ${val} to all players on ${field.name}!`);
-                        if (inputEl) inputEl.value = "";
-                        const updated = await getRatingsForSession(sessionId);
-                        setData(updated);
-                        const inputs = { ...ratingInputs };
-                        updated.session.session_players.forEach((sp: any) => {
-                          const coachRating = sp.session_player_ratings.find(
-                            (r: any) => r.coach_id === updated.coachEmail
-                          );
-                          inputs[sp.id] = coachRating ? coachRating.rating.toString() : "";
-                        });
-                        setRatingInputs(inputs);
-                      } catch (err: any) {
-                        toast.error("Failed to assign bulk ratings: " + err.message);
-                      } finally {
-                        setIsBulkSaving(false);
-                      }
-                    }}
-                    disabled={isBulkSaving}
-                    className='font-bold text-xs h-[30px]'
-                  >
-                    {isBulkSaving ? "Saving..." : "Apply to All"}
-                  </Button>
+              if (sec.score === null) {
+                return isNaN(currentRating) || currentRating === 0;
+              }
+              return !isNaN(currentRating) && currentRating === sec.score;
+            });
+
+            if (sectionPlayers.length === 0 && sec.id !== "unassigned") return null;
+
+            const sortedSectionPlayers = sortPlayersList(sectionPlayers);
+
+            return (
+              <Card key={sec.id} className='p-5 bg-surface/80 border-border shadow-sm flex flex-col space-y-4'>
+                <div className='flex items-center justify-between border-b border-border pb-3'>
+                  <h3 className='font-extrabold text-sm text-text flex items-center gap-2'>
+                    <span className='px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20'>
+                      {sec.title}
+                    </span>
+                  </h3>
+                  <span className='text-xs font-bold px-2 py-0.5 rounded-full bg-muted/20 text-muted'>
+                    {sortedSectionPlayers.length} {sortedSectionPlayers.length === 1 ? "Player" : "Players"}
+                  </span>
                 </div>
-              )}
 
-              {fieldPlayers.length === 0 ? (
-                <div className='text-center py-6 text-xs text-muted/50 italic font-medium'>
-                  No players placed in this field matching current filters.
-                </div>
-              ) : (
-                <div className='border border-border rounded-xl overflow-hidden bg-background/25'>
-                  <table className='w-full text-left text-xs'>
-                    <thead className='bg-background font-bold text-text-label border-b border-border'>
-                      <tr>
-                        <th className='p-3.5'>Player</th>
-                        <th className='p-3.5 text-center'>Tryout #</th>
-                        <th className='p-3.5 text-center w-36'>Your Rating (0-10)</th>
-                        {isCoordinator && showAllCoaches && (
-                          <>
-                            <th className='p-3.5'>Coaches Ratings Breakdown</th>
-                            <th className='p-3.5 text-center w-24'>Session Avg</th>
-                          </>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody className='divide-y divide-border bg-surface'>
-                      {fieldPlayers.map((sp: any) => {
-                        const isSaving = savingPlayers[sp.id] || false;
-                        
-                        return (
-                          <tr key={sp.id} className='hover:bg-background/20 transition-all'>
-                            <td className='p-3.5 font-bold text-text'>
-                              {sp.players.first_name} {sp.players.last_name}
-                            </td>
-                            <td className='p-3.5 text-center font-extrabold text-accent'>
-                              {sp.players.tryout_number ? `#${sp.players.tryout_number}` : "--"}
-                            </td>
+                {sortedSectionPlayers.length === 0 ? (
+                  <div className='text-center py-6 text-xs text-muted/50 italic font-medium'>
+                    No unassigned players. All players have assigned ratings!
+                  </div>
+                ) : (
+                  <div className='border border-border rounded-xl overflow-hidden bg-background/25'>
+                    <table className='w-full text-left text-xs'>
+                      <thead className='bg-background font-bold text-text-label border-b border-border'>
+                        <tr>
+                          <th className='p-3.5 text-sm'>Player Name</th>
+                          <th className='p-3.5 text-center'>Position</th>
+                          <th className='p-3.5 text-center'>Tryout #</th>
+                          <th className='p-3.5 text-center w-36'>Your Rating</th>
+                          {isCoordinator && showAllCoaches && (
+                            <>
+                              <th className='p-3.5'>Coaches Ratings Breakdown</th>
+                              <th className='p-3.5 text-center w-24'>Session Avg</th>
+                            </>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody className='divide-y divide-border bg-surface'>
+                        {sortedSectionPlayers.map((sp: any) => {
+                          const isSaving = savingPlayers[sp.id] || false;
+                          const pos = sp.players?.season_players?.[0]?.position || sp.players?.position || "N/A";
+                          const cleanTryout = (sp.players?.tryout_number || "").replace(/^\d{4}[-\s]*/, "");
+
+                          return (
+                            <tr key={sp.id} className='hover:bg-background/20 transition-all'>
+                              <td className='p-3.5 font-extrabold text-base text-text'>
+                                {sp.players.first_name} {sp.players.last_name}
+                              </td>
+                              <td className='p-3.5 text-center align-middle font-extrabold text-xs text-text'>
+                                <span className='inline-block px-2 py-0.5 rounded bg-surface border border-border text-muted font-bold'>
+                                  {pos}
+                                </span>
+                              </td>
+                              <td className='p-3.5 text-center font-extrabold text-accent'>
+                                {cleanTryout ? `#${cleanTryout}` : (sp.players.tryout_number ? `#${sp.players.tryout_number}` : "--")}
+                              </td>
                             <td className='p-3.5 text-center'>
                               <div className='flex items-center justify-center gap-2.5'>
                                 <input
@@ -670,9 +712,11 @@ export default function SessionRatingsPage(props: PageProps) {
               )}
             </Card>
           );
-        })}
+        })
+      })()}
       </div>
 
     </div>
   );
 }
+

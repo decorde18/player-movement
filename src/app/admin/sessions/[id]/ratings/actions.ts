@@ -48,6 +48,30 @@ export async function getRatingsForSession(sessionId: number) {
     throw new Error("Session not found");
   }
 
+  // Fetch previous sessions in the event for rating carryover
+  const priorSessions = await db.sessions.findMany({
+    where: {
+      event_id: session.event_id,
+      session_date: { lt: session.session_date },
+    },
+    orderBy: { session_date: "asc" },
+  });
+
+  const prevRatingsMap = new Map<number, number>();
+  if (priorSessions.length > 0) {
+    const priorSessionIds = priorSessions.map((s) => s.id);
+    const priorSps = await db.session_players.findMany({
+      where: { session_id: { in: priorSessionIds } },
+      select: { player_id: true, rating: true },
+    });
+    // Iterate in ascending order so latest non-zero rating overrides earlier ones
+    priorSps.forEach((psp) => {
+      if (psp.rating && psp.rating > 0) {
+        prevRatingsMap.set(psp.player_id, psp.rating);
+      }
+    });
+  }
+
   // Fetch session age groups / divisions for filter tabs
   const divisionIds = session.season_age_group_id
     ? [session.season_age_group_id]
@@ -63,11 +87,17 @@ export async function getRatingsForSession(sessionId: number) {
   const coachEmail = sessionUser?.user?.email || "unknown_coach";
   const coachName = sessionUser?.user?.name || coachEmail;
 
+  const previousRatings: Record<number, number> = {};
+  prevRatingsMap.forEach((val, key) => {
+    previousRatings[key] = val;
+  });
+
   return {
     session,
     sessionDivisions,
     coachEmail,
     coachName,
+    previousRatings,
     userScope: {
       role: scope.role,
       isSystemAdmin: scope.isSystemAdmin,

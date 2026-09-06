@@ -34,7 +34,8 @@ import {
   CheckSquare,
   Square,
   ArrowRightLeft,
-  Award
+  Award,
+  Star
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -44,6 +45,9 @@ import { STANDARD_POSITIONS } from "@/lib/utils/positionPresets";
 
 export default function PlayerBoardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Active Workspace Tab State: "checkin" | "rating" | "fields" | "ranking" | "placement"
+  const [activeTab, setActiveTab] = useState<"checkin" | "rating" | "fields" | "ranking" | "placement">("checkin");
 
   // Selectors State
   const [selectors, setSelectors] = useState<any>(null);
@@ -643,14 +647,154 @@ export default function PlayerBoardPage() {
 
       </Card>
 
-      {/* Main Drag & Drop Workspace */}
-      {(loadingBoard && !boardData) ? (
-        <div className='min-h-[50vh] flex flex-col items-center justify-center gap-3 text-text'>
-          <Loader2 className='animate-spin text-primary' size={44} />
-          <span className='font-bold text-muted'>Loading Session Board...</span>
+      {/* Workspace Tabs Sub-Navigation */}
+      {selectedSession && (
+        <div className='flex items-center gap-2 bg-surface/80 border border-border p-2 rounded-2xl shadow-sm overflow-x-auto shrink-0'>
+          <button
+            type='button'
+            onClick={() => setActiveTab("checkin")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              activeTab === "checkin"
+                ? "bg-primary text-white shadow-sm"
+                : "bg-background text-muted hover:text-text border border-border"
+            }`}
+          >
+            <CheckSquare size={14} className={activeTab === "checkin" ? "text-white" : "text-emerald-500"} />
+            Check-in
+          </button>
+          <button
+            type='button'
+            onClick={() => setActiveTab("rating")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              activeTab === "rating"
+                ? "bg-primary text-white shadow-sm"
+                : "bg-background text-muted hover:text-text border border-border"
+            }`}
+          >
+            <Star size={14} className={activeTab === "rating" ? "text-white" : "text-amber-500"} />
+            Rating
+          </button>
+          <button
+            type='button'
+            onClick={() => setActiveTab("fields")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              activeTab === "fields"
+                ? "bg-primary text-white shadow-sm"
+                : "bg-background text-muted hover:text-text border border-border"
+            }`}
+          >
+            <Grid size={14} />
+            Field Assignment
+          </button>
+          <button
+            type='button'
+            onClick={() => setActiveTab("ranking")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              activeTab === "ranking"
+                ? "bg-primary text-white shadow-sm"
+                : "bg-background text-muted hover:text-text border border-border"
+            }`}
+          >
+            <Award size={14} className={activeTab === "ranking" ? "text-white" : "text-purple-500"} />
+            Ranking
+          </button>
+          <button
+            type='button'
+            onClick={() => setActiveTab("placement")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              activeTab === "placement"
+                ? "bg-primary text-white shadow-sm"
+                : "bg-background text-muted hover:text-text border border-border"
+            }`}
+          >
+            <Users size={14} className={activeTab === "placement" ? "text-white" : "text-blue-500"} />
+            Final Placement
+          </button>
         </div>
-      ) : boardData ? (
-        <div className='flex-1 min-h-0 h-full flex flex-col gap-6'>
+      )}
+
+      {/* Tab 1: Check-in */}
+      {activeTab === "checkin" && (
+        <div className='flex-1 w-full min-h-[75vh] rounded-2xl overflow-hidden border border-border bg-surface shadow-sm'>
+          {selectedSession ? (
+            <iframe
+              key={`checkin-${selectedSession}`}
+              src={`/admin/sessions/${selectedSession}?embedded=true`}
+              className='w-full h-full min-h-[75vh] border-none'
+              title='Check-in Workspace'
+            />
+          ) : (
+            <div className='min-h-[40vh] flex items-center justify-center font-bold text-muted text-sm'>
+              Please select a Session from the top header above.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 2: Rating */}
+      {activeTab === "rating" && (
+        <div className='flex-1 w-full min-h-[75vh] rounded-2xl overflow-hidden border border-border bg-surface shadow-sm'>
+          {selectedSession ? (
+            <iframe
+              key={`rating-${selectedSession}`}
+              src={`/admin/sessions/${selectedSession}/ratings?embedded=true`}
+              className='w-full h-full min-h-[75vh] border-none'
+              title='Rating Workspace'
+            />
+          ) : (
+            <div className='min-h-[40vh] flex items-center justify-center font-bold text-muted text-sm'>
+              Please select a Session from the top header above.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 4: Ranking */}
+      {activeTab === "ranking" && (
+        <div className='flex-1 w-full min-h-[75vh] rounded-2xl overflow-hidden border border-border bg-surface shadow-sm'>
+          {selectedEvent ? (
+            <iframe
+              key={`ranking-${selectedEvent}`}
+              src={`/admin/events/${selectedEvent}/rankings?embedded=true`}
+              className='w-full h-full min-h-[75vh] border-none'
+              title='Ranking Workspace'
+            />
+          ) : (
+            <div className='min-h-[40vh] flex items-center justify-center font-bold text-muted text-sm'>
+              Please select an Event from the top header above.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 5: Final Placement */}
+      {activeTab === "placement" && (
+        <div className='flex-1 w-full min-h-[75vh] rounded-2xl overflow-hidden border border-border bg-surface shadow-sm'>
+          {selectedEvent ? (
+            <iframe
+              key={`placement-${selectedEvent}`}
+              src={`/admin/teams/placement?embedded=true`}
+              className='w-full h-full min-h-[75vh] border-none'
+              title='Final Placement Workspace'
+            />
+          ) : (
+            <div className='min-h-[40vh] flex items-center justify-center font-bold text-muted text-sm'>
+              Please select an Event from the top header above.
+            </div>
+          )}
+        </div>
+      )}
+
+
+      {/* Tab 3: Field Assignment (Main Drag & Drop Workspace) */}
+      {activeTab === "fields" && (
+        (loadingBoard && !boardData) ? (
+          <div className='min-h-[50vh] flex flex-col items-center justify-center gap-3 text-text'>
+            <Loader2 className='animate-spin text-primary' size={44} />
+            <span className='font-bold text-muted'>Loading Session Board...</span>
+          </div>
+        ) : boardData ? (
+          <div className='flex-1 min-h-0 h-full flex flex-col gap-6'>
           
           {/* Action Toolbar */}
           <div className='flex flex-wrap items-center justify-between gap-4 shrink-0'>
@@ -990,7 +1134,8 @@ export default function PlayerBoardPage() {
           <Grid size={38} className='mx-auto mb-2 text-muted/30' />
           <span className='font-bold text-sm'>Select a Session above to view the Movement Board</span>
         </div>
-      )}
+      ))}
+
 
       {/* Floating Bulk Action Bar */}
       {selectedPlayerIds.size > 0 && (

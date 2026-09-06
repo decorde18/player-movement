@@ -244,6 +244,15 @@ export async function movePlayer(sessionId: number, playerId: number, fieldId: n
   const sessionUser = await getServerAuthSession();
   getScopeFilters(sessionUser); // auth check
 
+  let nextRank: number | null = null;
+  if (fieldId !== null) {
+    const maxRankAgg = await db.session_players.aggregate({
+      where: { session_id: sessionId, field_id: fieldId },
+      _max: { rank: true },
+    });
+    nextRank = (maxRankAgg._max.rank || 0) + 1;
+  }
+
   await db.session_players.upsert({
     where: {
       session_id_player_id: {
@@ -253,11 +262,13 @@ export async function movePlayer(sessionId: number, playerId: number, fieldId: n
     },
     update: {
       field_id: fieldId,
+      ...(nextRank !== null ? { rank: nextRank } : {}),
     },
     create: {
       session_id: sessionId,
       player_id: playerId,
       field_id: fieldId,
+      rank: nextRank,
       attendance_status: "present",
     },
   });

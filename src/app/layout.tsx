@@ -30,10 +30,17 @@ export default async function RootLayout({
   const session = await getServerAuthSession();
 
   return (
-    <html lang='en'>
+    <html lang='en' suppressHydrationWarning>
+
       <head>
         <link rel='icon' type='image/png' href='/favicon.png' />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if(typeof window!=='undefined'&&(window.self!==window.top||window.location.search.indexOf('embedded=true')!==-1)){document.documentElement.classList.add('is-embedded');}`,
+          }}
+        />
       </head>
+
       <body className={`${inter.variable} ${poppins.variable}`}>
         <AuthProvider session={session}>
           {children}
